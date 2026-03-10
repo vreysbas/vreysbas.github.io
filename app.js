@@ -4,7 +4,8 @@ const PRODUCTS = [
   { id: 1, name: "Classic Hoodie", price: 59.99 },
   { id: 2, name: "Sport Sneakers", price: 89.5 },
   { id: 3, name: "Travel Backpack", price: 74.0 },
-  { id: 4, name: "Daily Water Bottle", price: 24.99 }
+  { id: 4, name: "Daily Water Bottle", price: 24.99 },
+  { id: 5, name: "Basic Fortnite Account", price: 10.0 }
 ];
 
 const PAGE = document.body.dataset.page;
@@ -12,12 +13,32 @@ const PAGE = document.body.dataset.page;
 const state = {
   cart: JSON.parse(localStorage.getItem("cart")) || [],
   orders: JSON.parse(localStorage.getItem("orders")) || [],
-  adminLoggedIn: sessionStorage.getItem("adminLoggedIn") === "true"
+  accounts: JSON.parse(localStorage.getItem("accounts")) || [],
+  currentUser: JSON.parse(sessionStorage.getItem("currentUser") || "null")
 };
+
+function ensureDefaultAdminAccount() {
+  const adminExists = state.accounts.some((a) => a.username === ADMIN_USER && a.isAdmin);
+  if (!adminExists) {
+    state.accounts.push({
+      username: ADMIN_USER,
+      email: "admin@congashop.local",
+      password: ADMIN_PASS,
+      isAdmin: true,
+      createdAt: new Date().toISOString()
+    });
+  }
+}
 
 function saveState() {
   localStorage.setItem("cart", JSON.stringify(state.cart));
   localStorage.setItem("orders", JSON.stringify(state.orders));
+  localStorage.setItem("accounts", JSON.stringify(state.accounts));
+  if (state.currentUser) {
+    sessionStorage.setItem("currentUser", JSON.stringify(state.currentUser));
+  } else {
+    sessionStorage.removeItem("currentUser");
+  }
 }
 
 function formatMoney(value) {
@@ -38,6 +59,22 @@ function renderShop() {
   const cartCount = document.getElementById("cartCount");
   const cartTotalEl = document.getElementById("cartTotal");
   const cartItems = document.getElementById("cartItems");
+  const adminTabLink = document.getElementById("adminTabLink");
+  const userWelcome = document.getElementById("userWelcome");
+  const openAuthBtn = document.getElementById("openAuthBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const authError = document.getElementById("authError");
+
+  function updateAuthUi() {
+    const loggedIn = Boolean(state.currentUser);
+    const isAdmin = Boolean(state.currentUser?.isAdmin);
+    adminTabLink.classList.toggle("hidden", !isAdmin);
+    openAuthBtn.classList.toggle("hidden", loggedIn);
+    logoutBtn.classList.toggle("hidden", !loggedIn);
+    userWelcome.textContent = loggedIn
+      ? `Ingelogd als ${state.currentUser.username}${isAdmin ? " (admin)" : ""}`
+      : "Niet ingelogd";
+  }
 
   function renderProducts() {
     productGrid.innerHTML = PRODUCTS.map((p) => `
@@ -96,6 +133,12 @@ function renderShop() {
       return;
     }
 
+    if (!state.currentUser) {
+      alert("Maak eerst een account aan of log in om te bestellen.");
+      toggle("authModal", true);
+      return;
+    }
+
     const method = formData.get("paymentMethod");
     const reference = (formData.get("paymentReference") || "").trim();
     const total = cartTotal();
@@ -105,6 +148,7 @@ function renderShop() {
     const paidAmount = isMarkedPaid ? total : 0;
 
     const order = {
+      username: state.currentUser.username,
       fullName: formData.get("fullName"),
       email: formData.get("email"),
       address: formData.get("address"),
@@ -136,6 +180,85 @@ function renderShop() {
   document.getElementById("closeCartBtn").addEventListener("click", () => toggle("cartPanel", false));
   document.getElementById("checkoutBtn").addEventListener("click", () => toggle("checkoutModal", true));
   document.getElementById("closeCheckoutBtn").addEventListener("click", () => toggle("checkoutModal", false));
+  document.getElementById("openAuthBtn").addEventListener("click", () => {
+    authError.textContent = "";
+    toggle("authModal", true);
+  });
+  document.getElementById("closeAuthBtn").addEventListener("click", () => toggle("authModal", false));
+
+  document.getElementById("showLoginTabBtn").addEventListener("click", () => {
+    document.getElementById("loginForm").classList.remove("hidden");
+    document.getElementById("registerForm").classList.add("hidden");
+    authError.textContent = "";
+  });
+
+  document.getElementById("showRegisterTabBtn").addEventListener("click", () => {
+    document.getElementById("registerForm").classList.remove("hidden");
+    document.getElementById("loginForm").classList.add("hidden");
+    authError.textContent = "";
+  });
+
+  document.getElementById("loginForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const username = String(data.get("username") || "").trim();
+    const password = String(data.get("password") || "");
+
+    const account = state.accounts.find((a) => a.username === username && a.password === password);
+    if (!account) {
+      authError.textContent = "Login mislukt.";
+      return;
+    }
+
+    state.currentUser = {
+      username: account.username,
+      email: account.email,
+      isAdmin: account.isAdmin
+    };
+    saveState();
+    e.target.reset();
+    toggle("authModal", false);
+    updateAuthUi();
+  });
+
+  document.getElementById("registerForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const username = String(data.get("username") || "").trim();
+    const email = String(data.get("email") || "").trim();
+    const password = String(data.get("password") || "");
+
+    if (!username || !email || !password) {
+      authError.textContent = "Vul alle velden in.";
+      return;
+    }
+
+    if (state.accounts.some((a) => a.username.toLowerCase() === username.toLowerCase())) {
+      authError.textContent = "Username bestaat al.";
+      return;
+    }
+
+    const newAccount = {
+      username,
+      email,
+      password,
+      isAdmin: false,
+      createdAt: new Date().toISOString()
+    };
+
+    state.accounts.push(newAccount);
+    state.currentUser = { username, email, isAdmin: false };
+    saveState();
+    e.target.reset();
+    toggle("authModal", false);
+    updateAuthUi();
+  });
+
+  document.getElementById("logoutBtn").addEventListener("click", () => {
+    state.currentUser = null;
+    saveState();
+    updateAuthUi();
+  });
 
   document.getElementById("checkoutForm").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -145,21 +268,22 @@ function renderShop() {
 
   renderProducts();
   renderCart();
+  updateAuthUi();
 }
 
 function renderAdminPage() {
-  const loginSection = document.getElementById("adminLoginSection");
+  const adminAccessDenied = document.getElementById("adminAccessDenied");
   const adminPanel = document.getElementById("adminPanel");
-  const loginError = document.getElementById("loginError");
 
   const kpiOrders = document.getElementById("kpiOrders");
   const kpiRevenue = document.getElementById("kpiRevenue");
   const kpiPaid = document.getElementById("kpiPaid");
   const kpiCustomers = document.getElementById("kpiCustomers");
   const orderTableBody = document.getElementById("orderTableBody");
+  const accountsTableBody = document.getElementById("accountsTableBody");
 
-  function showAdmin(show) {
-    loginSection.classList.toggle("hidden", show);
+  function showAdminAccess(show) {
+    adminAccessDenied.classList.toggle("hidden", show);
     adminPanel.classList.toggle("hidden", !show);
   }
 
@@ -176,22 +300,36 @@ function renderAdminPage() {
 
     if (state.orders.length === 0) {
       orderTableBody.innerHTML = "<tr><td colspan='11'>Nog geen bestellingen.</td></tr>";
+    } else {
+      orderTableBody.innerHTML = state.orders.map((o, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${o.fullName}</td>
+          <td>${o.email}</td>
+          <td>${o.address}</td>
+          <td>${o.items.map((i) => `${i.name} (${i.qty})`).join(", ")}</td>
+          <td>EUR ${formatMoney(o.total)}</td>
+          <td>EUR ${formatMoney(o.paidAmount || 0)}</td>
+          <td><span class="status-badge ${o.paymentStatus === "paid" ? "paid" : "pending"}">${o.paymentStatus}</span></td>
+          <td>${o.paymentMethod || "-"}</td>
+          <td>${o.paymentReference || "-"}</td>
+          <td>${new Date(o.createdAt).toLocaleString()}</td>
+        </tr>
+      `).join("");
+    }
+
+    if (state.accounts.length === 0) {
+      accountsTableBody.innerHTML = "<tr><td colspan='5'>Nog geen accounts.</td></tr>";
       return;
     }
 
-    orderTableBody.innerHTML = state.orders.map((o, idx) => `
+    accountsTableBody.innerHTML = state.accounts.map((a, idx) => `
       <tr>
         <td>${idx + 1}</td>
-        <td>${o.fullName}</td>
-        <td>${o.email}</td>
-        <td>${o.address}</td>
-        <td>${o.items.map((i) => `${i.name} (${i.qty})`).join(", ")}</td>
-        <td>EUR ${formatMoney(o.total)}</td>
-        <td>EUR ${formatMoney(o.paidAmount || 0)}</td>
-        <td><span class="status-badge ${o.paymentStatus === "paid" ? "paid" : "pending"}">${o.paymentStatus}</span></td>
-        <td>${o.paymentMethod || "-"}</td>
-        <td>${o.paymentReference || "-"}</td>
-        <td>${new Date(o.createdAt).toLocaleString()}</td>
+        <td>${a.username}</td>
+        <td>${a.email || "-"}</td>
+        <td>${a.isAdmin ? "admin" : "user"}</td>
+        <td>${new Date(a.createdAt).toLocaleString()}</td>
       </tr>
     `).join("");
   }
@@ -229,40 +367,48 @@ function renderAdminPage() {
     URL.revokeObjectURL(url);
   }
 
-  document.getElementById("adminLoginForm").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const data = new FormData(e.target);
-    const user = data.get("username");
-    const pass = data.get("password");
+  function exportAccountsCsv() {
+    const headers = ["Nr", "Username", "Email", "Role", "CreatedAt"];
+    const rows = state.accounts.map((a, idx) => [
+      idx + 1,
+      a.username,
+      a.email || "",
+      a.isAdmin ? "admin" : "user",
+      new Date(a.createdAt).toLocaleString()
+    ]);
 
-    if (user === ADMIN_USER && pass === ADMIN_PASS) {
-      state.adminLoggedIn = true;
-      sessionStorage.setItem("adminLoggedIn", "true");
-      loginError.textContent = "";
-      e.target.reset();
-      renderAdminData();
-      showAdmin(true);
-      return;
-    }
+    const csv = [headers, ...rows]
+      .map((r) => r.map(escapeCsvValue).join(";"))
+      .join("\n");
 
-    loginError.textContent = "Foute logingegevens.";
-  });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `accounts_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   document.getElementById("logoutAdminBtn").addEventListener("click", () => {
-    state.adminLoggedIn = false;
-    sessionStorage.removeItem("adminLoggedIn");
-    showAdmin(false);
+    state.currentUser = null;
+    saveState();
+    window.location.href = "index.html";
   });
 
   document.getElementById("exportOrdersBtn").addEventListener("click", exportOrdersCsv);
+  document.getElementById("exportAccountsBtn").addEventListener("click", exportAccountsCsv);
 
-  if (state.adminLoggedIn) {
+  if (state.currentUser?.isAdmin) {
     renderAdminData();
-    showAdmin(true);
+    showAdminAccess(true);
   } else {
-    showAdmin(false);
+    showAdminAccess(false);
   }
 }
+
+ensureDefaultAdminAccount();
+saveState();
 
 if (PAGE === "shop") {
   renderShop();

@@ -15,7 +15,9 @@
     <div class="brand">Conga Shop</div>
     <nav>
       <button id="openCartBtn" class="ghost-btn">Winkelmand (<span id="cartCount">0</span>)</button>
-      <a href="admin.html" class="ghost-btn link-btn">Admin Tab</a>
+      <a id="adminTabLink" href="admin.html" class="ghost-btn link-btn hidden">Admin Tab</a>
+      <button id="openAuthBtn" class="ghost-btn">Login / Register</button>
+      <button id="logoutBtn" class="ghost-btn hidden">Logout</button>
     </nav>
   </header>
 
@@ -23,6 +25,7 @@
     <section class="hero">
       <h1>Welkom in de shop</h1>
       <p>Kies producten, reken af en volg alles later in de admin tab.</p>
+      <p id="userWelcome" class="welcome-line">Niet ingelogd</p>
       <p class="note">Let op: op GitHub Pages is een echte PayPal-verificatie via webhook niet mogelijk zonder backend. Deze versie bewaart betaalstatus in de browser.</p>
     </section>
 
@@ -73,6 +76,45 @@
         </label>
         <button type="submit" class="primary-btn">Bestelling plaatsen</button>
       </form>
+    </div>
+  </section>
+
+  <section id="authModal" class="modal hidden">
+    <div class="modal-card auth-card">
+      <div class="panel-head">
+        <h3>Account</h3>
+        <button id="closeAuthBtn" class="close-btn">x</button>
+      </div>
+
+      <div class="auth-tabs">
+        <button id="showLoginTabBtn" class="ghost-btn">Login</button>
+        <button id="showRegisterTabBtn" class="ghost-btn">Register</button>
+      </div>
+
+      <form id="loginForm" class="form-grid">
+        <label>Username
+          <input name="username" required>
+        </label>
+        <label>Password
+          <input type="password" name="password" required>
+        </label>
+        <button type="submit" class="primary-btn">Inloggen</button>
+      </form>
+
+      <form id="registerForm" class="form-grid hidden">
+        <label>Username
+          <input name="username" required>
+        </label>
+        <label>E-mail
+          <input type="email" name="email" required>
+        </label>
+        <label>Password
+          <input type="password" name="password" required>
+        </label>
+        <button type="submit" class="primary-btn">Account aanmaken</button>
+      </form>
+
+      <p id="authError" class="error-text"></p>
     </div>
   </section>
 

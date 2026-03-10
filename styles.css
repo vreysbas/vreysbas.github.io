@@ -61,6 +61,11 @@ body {
   border-radius: 8px;
 }
 
+.welcome-line {
+  margin-top: 8px;
+  font-weight: 700;
+}
+
 .section-title { margin-top: 28px; }
 
 .product-grid {
@@ -153,6 +158,13 @@ body {
 .modal-card { width: min(520px, 92vw); padding: 14px; }
 .admin-card { width: min(420px, 92vw); }
 .gate-card { padding: 16px; max-width: 460px; }
+.auth-card { width: min(460px, 92vw); }
+
+.auth-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
 
 .form-grid { display: grid; gap: 10px; }
 

@@ -19,25 +19,19 @@
   </header>
 
   <main class="admin-layout">
-    <section id="adminLoginSection" class="modal-card admin-card gate-card">
-      <h3>Admin Login</h3>
-      <form id="adminLoginForm" class="form-grid">
-        <label>Username
-          <input name="username" required>
-        </label>
-        <label>Password
-          <input type="password" name="password" required>
-        </label>
-        <button type="submit" class="primary-btn">Inloggen</button>
-      </form>
-      <p id="loginError" class="error-text"></p>
+    <section id="adminAccessDenied" class="modal-card admin-card gate-card hidden">
+      <h3>Geen toegang</h3>
+      <p>Deze pagina is alleen voor admin accounts.</p>
+      <p>Log in op de shop met het admin-account en probeer opnieuw.</p>
+      <a href="index.html" class="ghost-btn link-btn">Naar shop login</a>
     </section>
 
-    <section id="adminPanel" class="hidden">
+    <section id="adminPanel">
       <header class="admin-header">
         <h2>Admin Dashboard</h2>
         <div class="actions-row">
           <button id="exportOrdersBtn" class="ghost-btn">Download Excel (CSV)</button>
+          <button id="exportAccountsBtn" class="ghost-btn">Download Accounts (CSV)</button>
           <button id="logoutAdminBtn" class="ghost-btn">Uitloggen</button>
         </div>
       </header>
@@ -69,6 +63,24 @@
               </tr>
             </thead>
             <tbody id="orderTableBody"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="table-card">
+        <h3>Accounts</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Username</th>
+                <th>E-mail</th>
+                <th>Role</th>
+                <th>Aangemaakt op</th>
+              </tr>
+            </thead>
+            <tbody id="accountsTableBody"></tbody>
           </table>
         </div>
       </article>
