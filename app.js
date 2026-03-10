@@ -249,8 +249,8 @@ function renderShop() {
     sendNotificationEmail({
       toEmail: order.email,
       toName: order.fullName,
-      subject: `Bestelling ontvangen - ${order.id}`,
-      message: `Hallo ${order.fullName},\n\nJe bestelling (${order.id}) is ontvangen.\nTotaal: EUR ${formatMoney(order.total)}\nMethode: ${order.paymentMethod}\nStatus: ${order.orderStatus}\n\nBedankt voor je bestelling!`
+      subject: `Conga Shop - Bevestiging bestelling ${order.id}`,
+      message: `Beste ${order.fullName},\n\nHartelijk dank voor je bestelling bij Conga Shop.\n\nBestelgegevens\n- Bestelnummer: ${order.id}\n- Datum: ${new Date(order.createdAt).toLocaleString()}\n- Totaalbedrag: EUR ${formatMoney(order.total)}\n- Betaalmethode: ${order.paymentMethod}\n- Betaalstatus: ${order.paymentStatus}\n- Orderstatus: ${order.orderStatus}\n\nLeveradres\n${order.address}\n\nWe houden je op de hoogte wanneer de status van je bestelling verandert.\n\nMet vriendelijke groeten,\nConga Shop\nSupport: support@congaxd.me`
     });
 
     alert("Bestelling geplaatst!");
@@ -343,8 +343,8 @@ function renderShop() {
     sendNotificationEmail({
       toEmail: newAccount.email,
       toName: newAccount.username,
-      subject: "Welkom bij Conga Shop",
-      message: `Hallo ${newAccount.username},\n\nJe account is succesvol aangemaakt bij Conga Shop.`
+      subject: "Conga Shop - Account succesvol aangemaakt",
+      message: `Beste ${newAccount.username},\n\nJe account is succesvol aangemaakt bij Conga Shop.\n\nAccountgegevens\n- Gebruikersnaam: ${newAccount.username}\n- E-mail: ${newAccount.email}\n- Aangemaakt op: ${new Date(newAccount.createdAt).toLocaleString()}\n\nJe kan nu bestellingen plaatsen en je gegevens beheren.\n\nMet vriendelijke groeten,\nConga Shop\nSupport: support@congaxd.me`
     });
   });
 
@@ -526,8 +526,8 @@ function renderAdminPage() {
         sendNotificationEmail({
           toEmail: order.email,
           toName: order.fullName,
-          subject: `Update bestelling ${order.id}`,
-          message: `Hallo ${order.fullName},\n\nDe status van je bestelling (${order.id}) is aangepast naar: ${order.orderStatus}.`
+          subject: `Conga Shop - Statusupdate bestelling ${order.id}`,
+          message: `Beste ${order.fullName},\n\nEr is een update voor je bestelling bij Conga Shop.\n\nUpdate\n- Bestelnummer: ${order.id}\n- Nieuwe orderstatus: ${order.orderStatus}\n- Betaalstatus: ${order.paymentStatus}\n\nJe ontvangt automatisch een nieuwe melding wanneer er opnieuw een wijziging is.\n\nMet vriendelijke groeten,\nConga Shop\nSupport: support@congaxd.me`
         });
       }
       return;
@@ -544,8 +544,8 @@ function renderAdminPage() {
         sendNotificationEmail({
           toEmail: order.email,
           toName: order.fullName,
-          subject: `Bestelling ${order.id} geannuleerd`,
-          message: `Hallo ${order.fullName},\n\nJe bestelling (${order.id}) werd geannuleerd. Neem contact op als dit onverwacht is.`
+          subject: `Conga Shop - Bestelling ${order.id} geannuleerd`,
+          message: `Beste ${order.fullName},\n\nJe bestelling werd geannuleerd in ons systeem.\n\nAnnulatiegegevens\n- Bestelnummer: ${order.id}\n- Datum annulatie: ${new Date().toLocaleString()}\n- Laatste gekende betaalstatus: ${order.paymentStatus}\n\nAls dit onverwacht is, neem dan contact op met support@congaxd.me en vermeld je bestelnummer.\n\nMet vriendelijke groeten,\nConga Shop`
         });
       }
     }
