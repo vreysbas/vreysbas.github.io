@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conga Shop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="bg-noise"></div>
+  <header class="topbar">
+    <div class="brand">Conga Shop</div>
+    <nav>
+      <button id="openCartBtn" class="ghost-btn">Winkelmand (<span id="cartCount">0</span>)</button>
+      <button id="openAdminBtn" class="ghost-btn">Admin</button>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <section class="hero">
+      <h1>Welkom in de shop</h1>
+      <p>Kies je producten, rond af met checkout, en beheer alles in het admin menu.</p>
+    </section>
+
+    <section>
+      <h2 class="section-title">Producten</h2>
+      <div id="productGrid" class="product-grid"></div>
+    </section>
+  </main>
+
+  <aside id="cartPanel" class="panel hidden">
+    <div class="panel-head">
+      <h3>Winkelmand</h3>
+      <button id="closeCartBtn" class="close-btn">x</button>
+    </div>
+    <div id="cartItems" class="stack"></div>
+    <div class="panel-foot">
+      <p>Totaal: EUR <span id="cartTotal">0.00</span></p>
+      <button id="checkoutBtn" class="primary-btn">Ga naar checkout</button>
+    </div>
+  </aside>
+
+  <section id="checkoutModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="panel-head">
+        <h3>Checkout</h3>
+        <button id="closeCheckoutBtn" class="close-btn">x</button>
+      </div>
+      <form id="checkoutForm" class="form-grid">
+        <label>Volledige naam
+          <input name="fullName" required>
+        </label>
+        <label>E-mail
+          <input type="email" name="email" required>
+        </label>
+        <label>Adres
+          <textarea name="address" rows="3" required></textarea>
+        </label>
+        <button type="submit" class="primary-btn">Bestelling plaatsen</button>
+      </form>
+    </div>
+  </section>
+
+  <section id="adminModal" class="modal hidden">
+    <div class="modal-card admin-card">
+      <div class="panel-head">
+        <h3>Admin Login</h3>
+        <button id="closeAdminBtn" class="close-btn">x</button>
+      </div>
+      <form id="adminLoginForm" class="form-grid">
+        <label>Username
+          <input name="username" required>
+        </label>
+        <label>Password
+          <input type="password" name="password" required>
+        </label>
+        <button type="submit" class="primary-btn">Inloggen</button>
+      </form>
+      <p id="loginError" class="error-text"></p>
+    </div>
+  </section>
+
+  <section id="adminPanel" class="admin-layout hidden">
+    <header class="admin-header">
+      <h2>Admin Dashboard</h2>
+      <button id="logoutAdminBtn" class="ghost-btn">Uitloggen</button>
+    </header>
+
+    <div class="kpi-grid">
+      <article class="kpi-card"><p>Bestellingen</p><h3 id="kpiOrders">0</h3></article>
+      <article class="kpi-card"><p>Omzet</p><h3>EUR <span id="kpiRevenue">0.00</span></h3></article>
+      <article class="kpi-card"><p>Klanten</p><h3 id="kpiCustomers">0</h3></article>
+    </div>
+
+    <article class="table-card">
+      <h3>Orders</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Klant</th>
+              <th>E-mail</th>
+              <th>Adres</th>
+              <th>Items</th>
+              <th>Totaal</th>
+              <th>Tijdstip</th>
+            </tr>
+          </thead>
+          <tbody id="orderTableBody"></tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>
