@@ -13,7 +13,10 @@ const MAIL_CONFIG = window.MAIL_CONFIG || {
   enabled: false,
   provider: "web3forms",
   accessKey: "",
-  ownerEmail: ""
+  ownerEmail: "",
+  fromName: "Conga Shop",
+  fromEmail: "no-reply@congaxd.me",
+  replyTo: ""
 };
 
 const state = {
@@ -74,12 +77,12 @@ async function sendNotificationEmail({ toEmail, toName, subject, message }) {
     const payload = {
       access_key: MAIL_CONFIG.accessKey,
       subject,
-      from_name: "Conga Shop",
+      from_name: MAIL_CONFIG.fromName || "Conga Shop",
       to_email: toEmail,
       name: toName,
-      email: toEmail,
+      email: MAIL_CONFIG.fromEmail || "no-reply@congaxd.me",
       message,
-      replyto: toEmail
+      replyto: MAIL_CONFIG.replyTo || MAIL_CONFIG.ownerEmail || MAIL_CONFIG.fromEmail || ""
     };
 
     if (MAIL_CONFIG.ownerEmail) {
