@@ -9,14 +9,12 @@ const PRODUCTS = [
 ];
 
 const PAGE = document.body.dataset.page;
-const EMAIL_CONFIG = window.EMAIL_CONFIG || {
+const MAIL_CONFIG = window.MAIL_CONFIG || {
   enabled: false,
-  publicKey: "",
-  serviceId: "",
-  templateId: ""
+  provider: "web3forms",
+  accessKey: "",
+  ownerEmail: ""
 };
-
-let emailInitialized = false;
 
 const state = {
   cart: JSON.parse(localStorage.getItem("cart")) || [],
@@ -66,32 +64,37 @@ function escapeCsvValue(value) {
 }
 
 function notificationsEnabled() {
-  return Boolean(
-    EMAIL_CONFIG.enabled
-    && EMAIL_CONFIG.publicKey
-    && EMAIL_CONFIG.serviceId
-    && EMAIL_CONFIG.templateId
-    && window.emailjs
-  );
-}
-
-function ensureEmailClient() {
-  if (!notificationsEnabled() || emailInitialized) return;
-  window.emailjs.init({ publicKey: EMAIL_CONFIG.publicKey });
-  emailInitialized = true;
+  return Boolean(MAIL_CONFIG.enabled && MAIL_CONFIG.provider === "web3forms" && MAIL_CONFIG.accessKey);
 }
 
 async function sendNotificationEmail({ toEmail, toName, subject, message }) {
   try {
-    ensureEmailClient();
     if (!notificationsEnabled()) return;
 
-    await window.emailjs.send(EMAIL_CONFIG.serviceId, EMAIL_CONFIG.templateId, {
-      to_email: toEmail,
-      to_name: toName,
+    const payload = {
+      access_key: MAIL_CONFIG.accessKey,
       subject,
-      message
+      from_name: "Conga Shop",
+      to_email: toEmail,
+      name: toName,
+      email: toEmail,
+      message,
+      replyto: toEmail
+    };
+
+    if (MAIL_CONFIG.ownerEmail) {
+      payload.ccemail = MAIL_CONFIG.ownerEmail;
+    }
+
+    const response = await fetch("https://api.web3forms.com/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
     });
+
+    if (!response.ok) {
+      console.error("Web3Forms request failed", response.status);
+    }
   } catch (error) {
     console.error("Email send failed:", error);
   }
