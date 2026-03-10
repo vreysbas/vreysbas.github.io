@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Customer Orders | Northline Shop{% endblock %}
+
+{% block content %}
+<section class="panel">
+    <h1>Customer Orders</h1>
+    <p>Live list of who ordered and what they ordered.</p>
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Order</th>
+                    <th>Customer</th>
+                    <th>Email</th>
+                    <th>Address</th>
+                    <th>Product</th>
+                    <th>Qty</th>
+                    <th>Total</th>
+                    <th>Placed At</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in customer_orders %}
+                <tr>
+                    <td>#{{ row.order_id }}</td>
+                    <td>{{ row.full_name }}</td>
+                    <td>{{ row.email }}</td>
+                    <td>{{ row.address }}</td>
+                    <td>{{ row.product_name }}</td>
+                    <td>{{ row.quantity }}</td>
+                    <td>${{ '%.2f'|format(row.total_amount) }}</td>
+                    <td>{{ row.created_at }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8">No orders yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

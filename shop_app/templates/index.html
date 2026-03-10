@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Products | Northline Shop{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <h1>Sell smarter. Track every customer order.</h1>
+    <p>Choose a product below and continue to checkout. Every order is saved so you can always check who bought what.</p>
+</section>
+
+<section class="product-grid">
+    {% for product in products %}
+    <article class="card">
+        <h2>{{ product.name }}</h2>
+        <p class="price">${{ '%.2f'|format(product.price) }}</p>
+        <a class="btn" href="{{ url_for('checkout', product_id=product.id) }}">Order This Product</a>
+    </article>
+    {% endfor %}
+</section>
+{% endblock %}
