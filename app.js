@@ -99,7 +99,7 @@ function renderShop() {
       <article class="product-card">
         <h3>${p.name}</h3>
         <p class="price">EUR ${formatMoney(p.price)}</p>
-        <button class="primary-btn" data-add="${p.id}">Koop nu</button>
+        <button class="primary-btn" data-add="${p.id}">Add to cart</button>
       </article>
     `).join("");
   }
@@ -151,12 +151,6 @@ function renderShop() {
       return;
     }
 
-    if (!state.currentUser) {
-      alert("Maak eerst een account aan of log in om te bestellen.");
-      toggle("authModal", true);
-      return;
-    }
-
     const fullName = String(formData.get("fullName") || "").trim();
     const email = String(formData.get("email") || "").trim();
     const address = String(formData.get("address") || "").trim();
@@ -186,7 +180,7 @@ function renderShop() {
 
     const order = {
       id: crypto.randomUUID(),
-      username: state.currentUser.username,
+      username: state.currentUser?.username || "guest",
       fullName,
       email,
       address,
