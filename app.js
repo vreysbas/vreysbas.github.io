@@ -9,6 +9,14 @@ const PRODUCTS = [
 ];
 
 const PAGE = document.body.dataset.page;
+const EMAIL_CONFIG = window.EMAIL_CONFIG || {
+  enabled: false,
+  publicKey: "",
+  serviceId: "",
+  templateId: ""
+};
+
+let emailInitialized = false;
 
 const state = {
   cart: JSON.parse(localStorage.getItem("cart")) || [],
@@ -55,6 +63,38 @@ function cartTotal() {
 function escapeCsvValue(value) {
   const text = String(value ?? "");
   return `"${text.replaceAll("\"", "\"\"")}"`;
+}
+
+function notificationsEnabled() {
+  return Boolean(
+    EMAIL_CONFIG.enabled
+    && EMAIL_CONFIG.publicKey
+    && EMAIL_CONFIG.serviceId
+    && EMAIL_CONFIG.templateId
+    && window.emailjs
+  );
+}
+
+function ensureEmailClient() {
+  if (!notificationsEnabled() || emailInitialized) return;
+  window.emailjs.init({ publicKey: EMAIL_CONFIG.publicKey });
+  emailInitialized = true;
+}
+
+async function sendNotificationEmail({ toEmail, toName, subject, message }) {
+  try {
+    ensureEmailClient();
+    if (!notificationsEnabled()) return;
+
+    await window.emailjs.send(EMAIL_CONFIG.serviceId, EMAIL_CONFIG.templateId, {
+      to_email: toEmail,
+      to_name: toName,
+      subject,
+      message
+    });
+  } catch (error) {
+    console.error("Email send failed:", error);
+  }
 }
 
 function isValidEmail(email) {
@@ -199,6 +239,14 @@ function renderShop() {
     saveState();
     renderCart();
     toggle("checkoutModal", false);
+
+    sendNotificationEmail({
+      toEmail: order.email,
+      toName: order.fullName,
+      subject: `Bestelling ontvangen - ${order.id}`,
+      message: `Hallo ${order.fullName},\n\nJe bestelling (${order.id}) is ontvangen.\nTotaal: EUR ${formatMoney(order.total)}\nMethode: ${order.paymentMethod}\nStatus: ${order.orderStatus}\n\nBedankt voor je bestelling!`
+    });
+
     alert("Bestelling geplaatst!");
   }
 
@@ -285,6 +333,13 @@ function renderShop() {
     e.target.reset();
     toggle("authModal", false);
     updateAuthUi();
+
+    sendNotificationEmail({
+      toEmail: newAccount.email,
+      toName: newAccount.username,
+      subject: "Welkom bij Conga Shop",
+      message: `Hallo ${newAccount.username},\n\nJe account is succesvol aangemaakt bij Conga Shop.`
+    });
   });
 
   document.getElementById("logoutBtn").addEventListener("click", () => {
@@ -456,9 +511,19 @@ function renderAdminPage() {
       if (!selectEl) return;
       const order = state.orders.find((o) => o.id === saveOrderId);
       if (!order) return;
+      const previousStatus = order.orderStatus || "new";
       order.orderStatus = selectEl.value;
       saveState();
       renderAdminData();
+
+      if (order.orderStatus !== previousStatus && isValidEmail(order.email)) {
+        sendNotificationEmail({
+          toEmail: order.email,
+          toName: order.fullName,
+          subject: `Update bestelling ${order.id}`,
+          message: `Hallo ${order.fullName},\n\nDe status van je bestelling (${order.id}) is aangepast naar: ${order.orderStatus}.`
+        });
+      }
       return;
     }
 
@@ -468,6 +533,15 @@ function renderAdminPage() {
       order.orderStatus = "cancelled";
       saveState();
       renderAdminData();
+
+      if (isValidEmail(order.email)) {
+        sendNotificationEmail({
+          toEmail: order.email,
+          toName: order.fullName,
+          subject: `Bestelling ${order.id} geannuleerd`,
+          message: `Hallo ${order.fullName},\n\nJe bestelling (${order.id}) werd geannuleerd. Neem contact op als dit onverwacht is.`
+        });
+      }
     }
   });
 
