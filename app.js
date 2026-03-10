@@ -1,5 +1,5 @@
 ﻿const ADMIN_USER = "vreys.bas";
-const ADMIN_PASS = "admin12345";
+const ADMIN_PASS = "Kleerkast0428!";
 const PRODUCTS = [
   { id: 1, name: "Classic Hoodie", price: 59.99 },
   { id: 2, name: "Sport Sneakers", price: 89.5 },
@@ -18,8 +18,8 @@ const state = {
 };
 
 function ensureDefaultAdminAccount() {
-  const adminExists = state.accounts.some((a) => a.username === ADMIN_USER && a.isAdmin);
-  if (!adminExists) {
+  const adminIndex = state.accounts.findIndex((a) => a.username === ADMIN_USER && a.isAdmin);
+  if (adminIndex === -1) {
     state.accounts.push({
       username: ADMIN_USER,
       email: "admin@congashop.local",
@@ -27,6 +27,9 @@ function ensureDefaultAdminAccount() {
       isAdmin: true,
       createdAt: new Date().toISOString()
     });
+  } else {
+    // Keep admin account password in sync with the configured owner password.
+    state.accounts[adminIndex].password = ADMIN_PASS;
   }
 }
 
@@ -52,6 +55,21 @@ function cartTotal() {
 function escapeCsvValue(value) {
   const text = String(value ?? "");
   return `"${text.replaceAll("\"", "\"\"")}"`;
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+}
+
+function isValidAddress(address) {
+  const compact = address.trim();
+  const hasNumber = /\d/.test(compact);
+  const hasLetters = /[a-zA-Z]/.test(compact);
+  return compact.length >= 8 && hasNumber && hasLetters;
+}
+
+function isValidFullName(name) {
+  return /^[a-zA-Z\s.'-]{2,}$/.test(name.trim());
 }
 
 function renderShop() {
@@ -139,6 +157,25 @@ function renderShop() {
       return;
     }
 
+    const fullName = String(formData.get("fullName") || "").trim();
+    const email = String(formData.get("email") || "").trim();
+    const address = String(formData.get("address") || "").trim();
+
+    if (!isValidFullName(fullName)) {
+      alert("Vul een geldige naam in.");
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      alert("Vul een geldig e-mailadres in.");
+      return;
+    }
+
+    if (!isValidAddress(address)) {
+      alert("Vul een geldig adres in (straat + nummer, min. 8 tekens).");
+      return;
+    }
+
     const method = formData.get("paymentMethod");
     const reference = (formData.get("paymentReference") || "").trim();
     const total = cartTotal();
@@ -148,12 +185,14 @@ function renderShop() {
     const paidAmount = isMarkedPaid ? total : 0;
 
     const order = {
+      id: crypto.randomUUID(),
       username: state.currentUser.username,
-      fullName: formData.get("fullName"),
-      email: formData.get("email"),
-      address: formData.get("address"),
+      fullName,
+      email,
+      address,
       items: [...state.cart],
       total,
+      orderStatus: "new",
       paymentMethod: method,
       paymentStatus,
       paidAmount,
@@ -299,7 +338,7 @@ function renderAdminPage() {
     kpiCustomers.textContent = uniqueCustomers;
 
     if (state.orders.length === 0) {
-      orderTableBody.innerHTML = "<tr><td colspan='11'>Nog geen bestellingen.</td></tr>";
+      orderTableBody.innerHTML = "<tr><td colspan='13'>Nog geen bestellingen.</td></tr>";
     } else {
       orderTableBody.innerHTML = state.orders.map((o, idx) => `
         <tr>
@@ -310,10 +349,24 @@ function renderAdminPage() {
           <td>${o.items.map((i) => `${i.name} (${i.qty})`).join(", ")}</td>
           <td>EUR ${formatMoney(o.total)}</td>
           <td>EUR ${formatMoney(o.paidAmount || 0)}</td>
+          <td><span class="status-badge ${o.orderStatus === "cancelled" ? "cancelled" : "pending"}">${o.orderStatus || "new"}</span></td>
           <td><span class="status-badge ${o.paymentStatus === "paid" ? "paid" : "pending"}">${o.paymentStatus}</span></td>
           <td>${o.paymentMethod || "-"}</td>
           <td>${o.paymentReference || "-"}</td>
           <td>${new Date(o.createdAt).toLocaleString()}</td>
+          <td>
+            <div class="admin-actions">
+              <select data-order-status="${o.id}">
+                <option value="new" ${o.orderStatus === "new" ? "selected" : ""}>new</option>
+                <option value="processing" ${o.orderStatus === "processing" ? "selected" : ""}>processing</option>
+                <option value="shipped" ${o.orderStatus === "shipped" ? "selected" : ""}>shipped</option>
+                <option value="completed" ${o.orderStatus === "completed" ? "selected" : ""}>completed</option>
+                <option value="cancelled" ${o.orderStatus === "cancelled" ? "selected" : ""}>cancelled</option>
+              </select>
+              <button class="ghost-btn" data-save-order="${o.id}">Opslaan</button>
+              <button class="ghost-btn danger-btn" data-cancel-order="${o.id}">Cancel</button>
+            </div>
+          </td>
         </tr>
       `).join("");
     }
@@ -337,7 +390,7 @@ function renderAdminPage() {
   function exportOrdersCsv() {
     const headers = [
       "OrderNr", "Klant", "Email", "Adres", "Items", "TotaalEUR",
-      "BetaaldEUR", "Status", "Methode", "Referentie", "Tijdstip"
+      "BetaaldEUR", "OrderStatus", "PaymentStatus", "Methode", "Referentie", "Tijdstip"
     ];
 
     const rows = state.orders.map((o, idx) => [
@@ -348,6 +401,7 @@ function renderAdminPage() {
       o.items.map((i) => `${i.name} (${i.qty})`).join(", "),
       formatMoney(o.total),
       formatMoney(o.paidAmount || 0),
+      o.orderStatus || "new",
       o.paymentStatus,
       o.paymentMethod,
       o.paymentReference || "",
@@ -398,6 +452,30 @@ function renderAdminPage() {
 
   document.getElementById("exportOrdersBtn").addEventListener("click", exportOrdersCsv);
   document.getElementById("exportAccountsBtn").addEventListener("click", exportAccountsCsv);
+
+  orderTableBody.addEventListener("click", (e) => {
+    const saveOrderId = e.target.getAttribute("data-save-order");
+    const cancelOrderId = e.target.getAttribute("data-cancel-order");
+
+    if (saveOrderId) {
+      const selectEl = document.querySelector(`select[data-order-status="${saveOrderId}"]`);
+      if (!selectEl) return;
+      const order = state.orders.find((o) => o.id === saveOrderId);
+      if (!order) return;
+      order.orderStatus = selectEl.value;
+      saveState();
+      renderAdminData();
+      return;
+    }
+
+    if (cancelOrderId) {
+      const order = state.orders.find((o) => o.id === cancelOrderId);
+      if (!order) return;
+      order.orderStatus = "cancelled";
+      saveState();
+      renderAdminData();
+    }
+  });
 
   if (state.currentUser?.isAdmin) {
     renderAdminData();

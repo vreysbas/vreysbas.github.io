@@ -220,6 +220,23 @@ th, td {
 .status-badge.paid { background: #d6f6ea; color: #0f7e6e; }
 .status-badge.pending { background: #ffe7d8; color: #b24b17; }
 
+.status-badge.cancelled { background: #ffe3e3; color: #b22828; }
+
+.admin-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-actions select {
+  min-width: 140px;
+}
+
+.danger-btn {
+  border: 1px solid #cf5f5f;
+  color: #8f1f1f;
+  background: #fff3f3;
+}
+
 .hidden { display: none !important; }
 
 @media (max-width: 900px) {
