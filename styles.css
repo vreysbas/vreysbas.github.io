@@ -227,6 +227,17 @@ body {
   font-size: 0.95rem;
 }
 
+.input-with-toggle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.small-toggle-btn {
+  white-space: nowrap;
+  padding: 8px 10px;
+}
+
 .checkout-field-editor {
   display: grid;
   gap: 10px;
@@ -245,6 +256,12 @@ body {
   color: var(--ink);
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+.field-order-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .panel-foot { margin-top: 12px; }

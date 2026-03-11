@@ -30,9 +30,9 @@ const DEFAULT_CHECKOUT_CONFIG = {
     "Na betaling controleren wij handmatig en zetten we je order op betaald."
   ],
   fields: [
-    { id: "fullName", label: "EAFC E-mail", type: "email", placeholder: "naam@email.com", required: true, locked: true },
-    { id: "eafcTag", label: "Info 1.", type: "text", placeholder: "1.", required: true, locked: true },
-    { id: "extraInfo2", label: "Info 2.", type: "text", placeholder: "2.", required: true, locked: true }
+    { id: "fullName", label: "EAFC E-mail", type: "email", placeholder: "naam@email.com", required: true, locked: true, validation: "email", masked: false },
+    { id: "eafcTag", label: "Info 1.", type: "text", placeholder: "1.", required: true, locked: true, validation: "min2", masked: false },
+    { id: "extraInfo2", label: "Info 2.", type: "text", placeholder: "2.", required: true, locked: true, validation: "min2", masked: false }
   ]
 };
 
@@ -47,8 +47,8 @@ const state = {
 
 const SENSITIVE_FIELD_PATTERN = /\b(password|wachtwoord|backup\s*codes?|2fa|authenticator|recovery\s*codes?)\b/i;
 const ALLOWED_FIELD_TYPES = new Set(["text", "email", "textarea"]);
+const ALLOWED_VALIDATIONS = new Set(["none", "email", "containsAt", "min2", "min6"]);
 const CORE_FIELD_IDS = new Set(["fullName", "eafcTag", "extraInfo2"]);
-const CORE_FIELD_ORDER = ["fullName", "eafcTag", "extraInfo2"];
 
 function getDefaultFieldById(fieldId) {
   return DEFAULT_CHECKOUT_CONFIG.fields.find((field) => field.id === fieldId);
@@ -62,25 +62,29 @@ function normalizeCheckoutFields(rawFields) {
     .filter((field) => field.id !== "email")
     .map((field) => ({
       ...field,
-      type: ALLOWED_FIELD_TYPES.has(field.type) ? field.type : "text"
+      type: ALLOWED_FIELD_TYPES.has(field.type) ? field.type : "text",
+      validation: ALLOWED_VALIDATIONS.has(field.validation) ? field.validation : "none",
+      masked: field.type === "textarea" ? false : Boolean(field.masked)
     }));
 
-  const extras = normalized.filter((field) => !CORE_FIELD_IDS.has(field.id));
-  const cores = CORE_FIELD_ORDER.map((coreId) => {
-    const existing = normalized.find((field) => field.id === coreId);
-    const fallback = getDefaultFieldById(coreId);
-    const source = existing || fallback;
-    if (!source) return null;
+  for (const coreId of CORE_FIELD_IDS) {
+    if (!normalized.some((field) => field.id === coreId)) {
+      const fallback = getDefaultFieldById(coreId);
+      if (fallback) normalized.push(cloneCheckoutField(fallback));
+    }
+  }
 
+  return normalized.map((field) => {
+    if (!CORE_FIELD_IDS.has(field.id)) return field;
+    const fallback = getDefaultFieldById(field.id);
     return {
-      ...cloneCheckoutField(source),
-      type: fallback?.type || source.type,
+      ...field,
+      type: fallback?.type || field.type,
       required: true,
-      locked: true
+      locked: true,
+      validation: ALLOWED_VALIDATIONS.has(field.validation) ? field.validation : (fallback?.validation || "none")
     };
-  }).filter(Boolean);
-
-  return [...cores, ...extras];
+  });
 }
 
 function cloneCheckoutField(field) {
@@ -90,7 +94,9 @@ function cloneCheckoutField(field) {
     type: field.type,
     placeholder: field.placeholder || "",
     required: Boolean(field.required),
-    locked: Boolean(field.locked)
+    locked: Boolean(field.locked),
+    validation: String(field.validation || "none"),
+    masked: Boolean(field.masked)
   };
 }
 
@@ -262,6 +268,23 @@ function getCheckoutFieldValue(configField, formData) {
   return String(formData.get(configField.id) || "").trim();
 }
 
+function validateFieldRule(value, field) {
+  if (!field.required && !value) return "";
+
+  switch (field.validation) {
+    case "email":
+      return isValidEmail(value) ? "" : `${field.label} moet een geldig e-mailadres zijn.`;
+    case "containsAt":
+      return value.includes("@") ? "" : `${field.label} moet minstens een @ bevatten.`;
+    case "min2":
+      return value.length >= 2 ? "" : `${field.label} moet minstens 2 tekens hebben.`;
+    case "min6":
+      return value.length >= 6 ? "" : `${field.label} moet minstens 6 tekens hebben.`;
+    default:
+      return "";
+  }
+}
+
 function renderShop() {
   const productGrid = document.getElementById("productGrid");
   const cartCount = document.getElementById("cartCount");
@@ -319,9 +342,15 @@ function renderShop() {
         `;
       }
 
+      const inputType = field.masked ? "password" : field.type;
+      const inputId = `checkout-input-${field.id}`;
+
       return `
         <label>${safeLabel}
-          <input name="${field.id}" type="${field.type}" ${field.required ? "required" : ""} placeholder="${safePlaceholder}">
+          <div class="input-with-toggle">
+            <input id="${inputId}" name="${field.id}" type="${inputType}" ${field.required ? "required" : ""} placeholder="${safePlaceholder}">
+            ${field.masked ? `<button type="button" class="ghost-btn small-toggle-btn" data-toggle-mask="${inputId}">Oogje</button>` : ""}
+          </div>
         </label>
       `;
     }).join("");
@@ -410,14 +439,13 @@ function renderShop() {
     const extraField2 = String(formData.get("extraInfo2") || "").trim();
     const noRefundAck = formData.get("noRefundAck") === "on";
 
-    if (!isValidEmail(primaryEmail)) {
-      alert("Vul een geldig e-mailadres in bij EAFC E-mail.");
-      return null;
-    }
-
-    if (!isValidEafcTag(extraField1) || !isValidEafcTag(extraField2)) {
-      alert("Vul zowel veld 1 als veld 2 in.");
-      return null;
+    for (const field of state.checkoutConfig.fields) {
+      const value = getCheckoutFieldValue(field, formData);
+      const validationError = validateFieldRule(value, field);
+      if (validationError) {
+        alert(validationError);
+        return null;
+      }
     }
 
     if (!noRefundAck) {
@@ -503,8 +531,14 @@ function renderShop() {
   document.addEventListener("click", (e) => {
     const add = e.target.getAttribute("data-add");
     const remove = e.target.getAttribute("data-remove");
+    const toggleMaskId = e.target.getAttribute("data-toggle-mask");
     if (add) addToCart(add);
     if (remove) removeFromCart(remove);
+    if (toggleMaskId) {
+      const input = document.getElementById(toggleMaskId);
+      if (!input) return;
+      input.type = input.type === "password" ? "text" : "password";
+    }
   });
 
   document.getElementById("openCartBtn").addEventListener("click", () => toggle("cartPanel", true));
@@ -667,11 +701,28 @@ function renderAdminPage() {
       coreCheckoutFieldsList.innerHTML = coreFields.map((field) => `
         <div class="checkout-field-editor">
           <span class="field-chip">Vast veld</span>
+          <div class="field-order-actions">
+            <button type="button" class="ghost-btn" data-move-field-up="${field.id}">Omhoog</button>
+            <button type="button" class="ghost-btn" data-move-field-down="${field.id}">Omlaag</button>
+          </div>
           <label>Label
             <input data-field-id="${field.id}" data-prop="label" value="${escapeHtml(field.label)}">
           </label>
           <label>Placeholder
             <input data-field-id="${field.id}" data-prop="placeholder" value="${escapeHtml(field.placeholder || "")}">
+          </label>
+          <label>Validatie
+            <select data-field-id="${field.id}" data-prop="validation">
+              <option value="none" ${field.validation === "none" ? "selected" : ""}>Geen</option>
+              <option value="email" ${field.validation === "email" ? "selected" : ""}>Geldig e-mailformaat</option>
+              <option value="containsAt" ${field.validation === "containsAt" ? "selected" : ""}>Minstens @</option>
+              <option value="min2" ${field.validation === "min2" ? "selected" : ""}>Minstens 2 tekens</option>
+              <option value="min6" ${field.validation === "min6" ? "selected" : ""}>Minstens 6 tekens</option>
+            </select>
+          </label>
+          <label class="checkbox-line compact">
+            <input type="checkbox" data-field-id="${field.id}" data-prop="masked" ${field.masked ? "checked" : ""}>
+            Verberg input + oogje
           </label>
         </div>
       `).join("");
@@ -681,6 +732,10 @@ function renderAdminPage() {
         : extraFields.map((field) => `
           <div class="checkout-field-editor" data-extra-row="${field.id}">
             <span class="field-chip">Extra veld</span>
+            <div class="field-order-actions">
+              <button type="button" class="ghost-btn" data-move-field-up="${field.id}">Omhoog</button>
+              <button type="button" class="ghost-btn" data-move-field-down="${field.id}">Omlaag</button>
+            </div>
             <label>Label
               <input data-field-id="${field.id}" data-prop="label" value="${escapeHtml(field.label)}">
             </label>
@@ -694,9 +749,22 @@ function renderAdminPage() {
             <label>Placeholder
               <input data-field-id="${field.id}" data-prop="placeholder" value="${escapeHtml(field.placeholder || "")}">
             </label>
+            <label>Validatie
+              <select data-field-id="${field.id}" data-prop="validation">
+                <option value="none" ${field.validation === "none" ? "selected" : ""}>Geen</option>
+                <option value="email" ${field.validation === "email" ? "selected" : ""}>Geldig e-mailformaat</option>
+                <option value="containsAt" ${field.validation === "containsAt" ? "selected" : ""}>Minstens @</option>
+                <option value="min2" ${field.validation === "min2" ? "selected" : ""}>Minstens 2 tekens</option>
+                <option value="min6" ${field.validation === "min6" ? "selected" : ""}>Minstens 6 tekens</option>
+              </select>
+            </label>
             <label class="checkbox-line compact">
               <input type="checkbox" data-field-id="${field.id}" data-prop="required" ${field.required ? "checked" : ""}>
               Verplicht
+            </label>
+            <label class="checkbox-line compact">
+              <input type="checkbox" data-field-id="${field.id}" data-prop="masked" ${field.masked ? "checked" : ""}>
+              Verberg input + oogje
             </label>
             <button type="button" class="ghost-btn danger-btn" data-remove-checkout-field="${field.id}">Verwijder</button>
           </div>
@@ -719,7 +787,9 @@ function renderAdminPage() {
           label: String(labelInput?.value || field.label).trim(),
           placeholder: String(placeholderInput?.value || "").trim(),
           type: String(typeInput?.value || field.type),
-          required: requiredInput ? requiredInput.checked : field.required
+          required: requiredInput ? requiredInput.checked : field.required,
+          validation: String(checkoutConfigForm.querySelector(`[data-field-id="${field.id}"][data-prop="validation"]`)?.value || field.validation || "none"),
+          masked: Boolean(checkoutConfigForm.querySelector(`[data-field-id="${field.id}"][data-prop="masked"]`)?.checked)
         };
       });
 
@@ -954,7 +1024,9 @@ function renderAdminPage() {
       type: "text",
       placeholder: "",
       required: false,
-      locked: false
+      locked: false,
+      validation: "none",
+      masked: false
     });
     renderCheckoutConfigEditor();
   });
@@ -967,6 +1039,31 @@ function renderAdminPage() {
     if (!removeId) return;
     state.checkoutConfig.fields = state.checkoutConfig.fields.filter((field) => field.id !== removeId);
     renderCheckoutConfigEditor();
+  });
+  checkoutConfigForm.addEventListener("click", (e) => {
+    const moveUpId = e.target.getAttribute("data-move-field-up");
+    const moveDownId = e.target.getAttribute("data-move-field-down");
+
+    if (moveUpId) {
+      const idx = state.checkoutConfig.fields.findIndex((field) => field.id === moveUpId);
+      if (idx > 0) {
+        const temp = state.checkoutConfig.fields[idx - 1];
+        state.checkoutConfig.fields[idx - 1] = state.checkoutConfig.fields[idx];
+        state.checkoutConfig.fields[idx] = temp;
+        renderCheckoutConfigEditor();
+      }
+      return;
+    }
+
+    if (moveDownId) {
+      const idx = state.checkoutConfig.fields.findIndex((field) => field.id === moveDownId);
+      if (idx >= 0 && idx < state.checkoutConfig.fields.length - 1) {
+        const temp = state.checkoutConfig.fields[idx + 1];
+        state.checkoutConfig.fields[idx + 1] = state.checkoutConfig.fields[idx];
+        state.checkoutConfig.fields[idx] = temp;
+        renderCheckoutConfigEditor();
+      }
+    }
   });
   document.getElementById("clearFiltersBtn").addEventListener("click", () => {
     orderSearchInput.value = "";
