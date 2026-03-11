@@ -291,6 +291,10 @@ function renderShop() {
   const cartTotalEl = document.getElementById("cartTotal");
   const cartItems = document.getElementById("cartItems");
   const customerOrdersList = document.getElementById("customerOrdersList");
+  const orderActionConfirmModal = document.getElementById("orderActionConfirmModal");
+  const orderActionConfirmTitle = document.getElementById("orderActionConfirmTitle");
+  const orderActionConfirmMessage = document.getElementById("orderActionConfirmMessage");
+  const confirmOrderActionBtn = document.getElementById("confirmOrderActionBtn");
   const checkoutFieldsContainer = document.getElementById("checkoutFieldsContainer");
   const storePaymentNote = document.getElementById("storePaymentNote");
   const refundWarningText = document.getElementById("refundWarningText");
@@ -301,6 +305,7 @@ function renderShop() {
   const openAuthBtn = document.getElementById("openAuthBtn");
   const logoutBtn = document.getElementById("logoutBtn");
   const authError = document.getElementById("authError");
+  let pendingOrderAction = null;
 
   function updateAuthUi() {
     const loggedIn = Boolean(state.currentUser);
@@ -403,8 +408,54 @@ function renderShop() {
           <span><strong>Items:</strong> ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}</span>
              <span><strong>Uitleg:</strong> ${order.paymentStatus === "paid" ? "Betaling ontvangen, check de orderstatus voor de voortgang." : `Betaal handmatig naar ${state.checkoutConfig.paypalEmail} met dit order-ID in de beschrijving.`}</span>
         </div>
+        <div class="order-actions">
+          <button class="primary-btn" data-order-action="paid" data-order-id="${order.id}">I paid</button>
+          <button class="ghost-btn danger-btn" data-order-action="cancelled" data-order-id="${order.id}">I cancelled</button>
+        </div>
       </article>
     `).join("");
+  }
+
+  function openOrderActionConfirm(action, orderId) {
+    pendingOrderAction = { action, orderId };
+    if (action === "paid") {
+      orderActionConfirmTitle.textContent = "Bevestig betaling";
+      orderActionConfirmMessage.textContent = `Ben je zeker dat je order ${orderId} hebt betaald?`;
+      confirmOrderActionBtn.textContent = "Ja, ik heb betaald";
+    } else {
+      orderActionConfirmTitle.textContent = "Bevestig annulering";
+      orderActionConfirmMessage.textContent = `Ben je zeker dat je order ${orderId} wil annuleren?`;
+      confirmOrderActionBtn.textContent = "Ja, annuleer order";
+    }
+    toggle("orderActionConfirmModal", true);
+  }
+
+  function applyOrderAction() {
+    if (!pendingOrderAction) return;
+    const { action, orderId } = pendingOrderAction;
+    const order = state.orders.find((x) => x.id === orderId);
+    if (!order) {
+      toggle("orderActionConfirmModal", false);
+      pendingOrderAction = null;
+      return;
+    }
+
+    if (action === "paid") {
+      order.orderStatus = order.orderStatus === "awaiting_payment" ? "payment_review" : order.orderStatus;
+      order.paymentStatus = order.paymentStatus === "paid" ? "paid" : "payment_review";
+      order.paymentReference = `${order.paymentReference || ""} | klant: I paid @ ${new Date().toLocaleString()}`.trim();
+    }
+
+    if (action === "cancelled") {
+      order.orderStatus = "cancelled";
+      order.paymentStatus = order.paymentStatus === "paid" ? "paid" : "cancelled";
+      order.paymentReference = `${order.paymentReference || ""} | klant: I cancelled @ ${new Date().toLocaleString()}`.trim();
+    }
+
+    saveState();
+    renderCustomerOrders();
+    toggle("orderActionConfirmModal", false);
+    pendingOrderAction = null;
   }
 
   function addToCart(productId) {
@@ -532,12 +583,17 @@ function renderShop() {
     const add = e.target.getAttribute("data-add");
     const remove = e.target.getAttribute("data-remove");
     const toggleMaskId = e.target.getAttribute("data-toggle-mask");
+    const orderAction = e.target.getAttribute("data-order-action");
+    const orderActionOrderId = e.target.getAttribute("data-order-id");
     if (add) addToCart(add);
     if (remove) removeFromCart(remove);
     if (toggleMaskId) {
       const input = document.getElementById(toggleMaskId);
       if (!input) return;
       input.type = input.type === "password" ? "text" : "password";
+    }
+    if (orderAction && orderActionOrderId) {
+      openOrderActionConfirm(orderAction, orderActionOrderId);
     }
   });
 
@@ -548,6 +604,15 @@ function renderShop() {
     toggle("ordersPanel", true);
   });
   document.getElementById("closeOrdersBtn").addEventListener("click", () => toggle("ordersPanel", false));
+  document.getElementById("closeOrderActionConfirmBtn").addEventListener("click", () => {
+    pendingOrderAction = null;
+    toggle("orderActionConfirmModal", false);
+  });
+  document.getElementById("cancelOrderActionBtn").addEventListener("click", () => {
+    pendingOrderAction = null;
+    toggle("orderActionConfirmModal", false);
+  });
+  confirmOrderActionBtn.addEventListener("click", applyOrderAction);
   document.getElementById("checkoutBtn").addEventListener("click", () => {
     toggle("checkoutModal", true);
     document.getElementById("checkoutStatus").textContent = "Maak eerst je order aan. Daarna zie je exact waar je moet betalen.";

@@ -48,21 +48,37 @@
     </div>
   </aside>
 
-  <aside id="ordersPanel" class="panel hidden">
-    <div class="panel-head">
-      <h3>Mijn orders</h3>
-      <button id="closeOrdersBtn" class="close-btn">x</button>
+  <section id="ordersPanel" class="modal hidden">
+    <div class="modal-card orders-fullscreen-card">
+      <div class="panel-head">
+        <h3>Mijn orders</h3>
+        <button id="closeOrdersBtn" class="close-btn">x</button>
+      </div>
+      <div class="status-guide">
+        <p class="small-line"><strong>Zo lees je je order:</strong></p>
+        <p class="small-line">awaiting_payment: nog niet betaald</p>
+        <p class="small-line">payment_review: betaling wordt gecontroleerd</p>
+        <p class="small-line">queued: order staat klaar in wachtrij</p>
+        <p class="small-line">in_progress: we zijn bezig</p>
+        <p class="small-line">completed: order afgerond</p>
+      </div>
+      <div id="customerOrdersList" class="orders-grid"></div>
     </div>
-    <div class="status-guide">
-      <p class="small-line"><strong>Zo lees je je order:</strong></p>
-      <p class="small-line">awaiting_payment: nog niet betaald</p>
-      <p class="small-line">payment_review: betaling wordt gecontroleerd</p>
-      <p class="small-line">queued: order staat klaar in wachtrij</p>
-      <p class="small-line">in_progress: we zijn bezig</p>
-      <p class="small-line">completed: order afgerond</p>
+  </section>
+
+  <section id="orderActionConfirmModal" class="modal hidden">
+    <div class="modal-card auth-card">
+      <div class="panel-head">
+        <h3 id="orderActionConfirmTitle">Bevestig actie</h3>
+        <button id="closeOrderActionConfirmBtn" class="close-btn">x</button>
+      </div>
+      <p id="orderActionConfirmMessage" class="small-line"></p>
+      <div class="actions-row">
+        <button id="confirmOrderActionBtn" class="primary-btn">Ja, doorgaan</button>
+        <button id="cancelOrderActionBtn" class="ghost-btn">Annuleren</button>
+      </div>
     </div>
-    <div id="customerOrdersList" class="stack"></div>
-  </aside>
+  </section>
 
   <section id="checkoutModal" class="modal hidden">
     <div class="modal-card">

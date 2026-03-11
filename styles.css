@@ -220,6 +220,25 @@ body {
   background: rgba(12, 34, 42, 0.7);
 }
 
+.orders-fullscreen-card {
+  width: min(1100px, 95vw);
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.orders-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.order-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
 .order-meta {
   display: grid;
   gap: 4px;
