@@ -197,6 +197,10 @@ body {
   color: var(--ink);
 }
 
+.checkbox-line.compact {
+  width: fit-content;
+}
+
 .checkbox-line input {
   width: auto;
 }
@@ -221,6 +225,26 @@ body {
   gap: 4px;
   color: var(--muted);
   font-size: 0.95rem;
+}
+
+.checkout-field-editor {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(10, 24, 31, 0.72);
+}
+
+.field-chip {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(25, 211, 107, 0.18);
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .panel-foot { margin-top: 12px; }

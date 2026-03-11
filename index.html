@@ -27,7 +27,7 @@
       <h1>EAFC 26 Storefront</h1>
       <p>Shop jouw upgrades, packs en guides. Jij beheert de producten zelf in de admin tab.</p>
       <p id="userWelcome" class="welcome-line">Niet ingelogd</p>
-      <p class="note">Betalen gebeurt manueel via PayPal naar congaxd@gmail.com met je order-ID in de beschrijving. Zo kunnen we betalingen correct koppelen.</p>
+      <p id="storePaymentNote" class="note">Betalen gebeurt manueel via PayPal naar congaxd@gmail.com met je order-ID in de beschrijving. Zo kunnen we betalingen correct koppelen.</p>
     </section>
 
     <section>
@@ -71,17 +71,9 @@
         <button id="closeCheckoutBtn" class="close-btn">x</button>
       </div>
       <form id="checkoutForm" class="form-grid">
-        <label>Volledige naam
-          <input name="fullName" required>
-        </label>
-        <label>E-mail
-          <input type="email" name="email" required>
-        </label>
-        <label>EAFC gebruikersnaam
-          <input name="eafcTag" required placeholder="bv. VreysBas">
-        </label>
+        <div id="checkoutFieldsContainer" class="form-grid"></div>
         <div class="refund-warning">
-          <strong>Belangrijk:</strong> Als je fout betaalt (verkeerd bedrag, verkeerde ontvanger of zonder correct order-ID), is er geen refund mogelijk.
+          <strong>Belangrijk:</strong> <span id="refundWarningText">Als je fout betaalt (verkeerd bedrag, verkeerde ontvanger of zonder correct order-ID), is er geen refund mogelijk.</span>
         </div>
         <label class="checkbox-line">
           <input type="checkbox" name="noRefundAck" required>
@@ -90,8 +82,8 @@
         <button type="submit" class="primary-btn">Order aanmaken</button>
         <p id="checkoutStatus" class="small-line"></p>
         <div id="manualPaymentInstructions" class="paypal-section hidden">
-          <p class="small-line">Volg exact deze stappen om problemen te vermijden:</p>
-          <ol class="instruction-list">
+          <p id="instructionIntro" class="small-line">Volg exact deze stappen om problemen te vermijden:</p>
+          <ol id="instructionList" class="instruction-list">
             <li>Open PayPal en kies geld verzenden.</li>
             <li>Stuur exact het orderbedrag naar <strong>congaxd@gmail.com</strong>.</li>
             <li>Zet je order-ID in de beschrijving.</li>

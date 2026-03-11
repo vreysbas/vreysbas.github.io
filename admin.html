@@ -119,6 +119,40 @@
 
       <article class="table-card">
         <div class="admin-header compact">
+          <h3>Checkout Builder</h3>
+          <button id="addCheckoutFieldBtn" class="ghost-btn">Extra veld</button>
+        </div>
+        <p class="small-line">Hier kan je de checkout grafisch aanpassen. Gevoelige velden zoals wachtwoorden, backup codes of login-data zijn bewust niet toegestaan.</p>
+        <form id="checkoutConfigForm" class="form-grid">
+          <label>Shop betaalnotitie
+            <textarea id="configPaymentNote" rows="3"></textarea>
+          </label>
+          <label>PayPal ontvangstadres
+            <input id="configPaypalEmail" type="email">
+          </label>
+          <label>No-refund waarschuwing
+            <textarea id="configRefundWarning" rows="3"></textarea>
+          </label>
+          <label>Instructie intro
+            <input id="configInstructionIntro" type="text">
+          </label>
+          <label>Instructiestappen (1 per lijn)
+            <textarea id="configInstructionSteps" rows="6"></textarea>
+          </label>
+          <div>
+            <h4>Standaard velden</h4>
+            <div id="coreCheckoutFieldsList" class="stack"></div>
+          </div>
+          <div>
+            <h4>Extra veilige velden</h4>
+            <div id="extraCheckoutFieldsList" class="stack"></div>
+          </div>
+          <button type="submit" class="primary-btn">Checkout opslaan</button>
+        </form>
+      </article>
+
+      <article class="table-card">
+        <div class="admin-header compact">
           <h3>Producten</h3>
           <button id="addProductBtn" class="ghost-btn">Nieuw product</button>
         </div>
