@@ -31,9 +31,8 @@ const DEFAULT_CHECKOUT_CONFIG = {
   ],
   fields: [
     { id: "fullName", label: "EAFC E-mail", type: "email", placeholder: "naam@email.com", required: true, locked: true },
-    { id: "email", label: "EAFC ID", type: "text", placeholder: "Jouw EAFC ID", required: true, locked: true },
-    { id: "eafcTag", label: "Extra veld 1", type: "text", placeholder: "1.", required: true, locked: true },
-    { id: "extraInfo2", label: "Extra veld 2", type: "text", placeholder: "2.", required: true, locked: true }
+    { id: "eafcTag", label: "Info 1.", type: "text", placeholder: "1.", required: true, locked: true },
+    { id: "extraInfo2", label: "Info 2.", type: "text", placeholder: "2.", required: true, locked: true }
   ]
 };
 
@@ -48,7 +47,8 @@ const state = {
 
 const SENSITIVE_FIELD_PATTERN = /\b(password|wachtwoord|backup\s*codes?|2fa|authenticator|recovery\s*codes?)\b/i;
 const ALLOWED_FIELD_TYPES = new Set(["text", "email", "textarea"]);
-const CORE_FIELD_IDS = new Set(["fullName", "email", "eafcTag", "extraInfo2"]);
+const CORE_FIELD_IDS = new Set(["fullName", "eafcTag", "extraInfo2"]);
+const CORE_FIELD_ORDER = ["fullName", "eafcTag", "extraInfo2"];
 
 function getDefaultFieldById(fieldId) {
   return DEFAULT_CHECKOUT_CONFIG.fields.find((field) => field.id === fieldId);
@@ -59,31 +59,28 @@ function normalizeCheckoutFields(rawFields) {
   const normalized = baseFields
     .map(cloneCheckoutField)
     .filter((field) => Boolean(field.id) && Boolean(field.label))
+    .filter((field) => field.id !== "email")
     .map((field) => ({
       ...field,
       type: ALLOWED_FIELD_TYPES.has(field.type) ? field.type : "text"
     }));
 
-  // Always guarantee the three core checkout fields are present.
-  for (const coreId of CORE_FIELD_IDS) {
-    if (!normalized.some((field) => field.id === coreId)) {
-      const defaultField = getDefaultFieldById(coreId);
-      if (defaultField) {
-        normalized.unshift(cloneCheckoutField(defaultField));
-      }
-    }
-  }
+  const extras = normalized.filter((field) => !CORE_FIELD_IDS.has(field.id));
+  const cores = CORE_FIELD_ORDER.map((coreId) => {
+    const existing = normalized.find((field) => field.id === coreId);
+    const fallback = getDefaultFieldById(coreId);
+    const source = existing || fallback;
+    if (!source) return null;
 
-  return normalized.map((field) => {
-    if (!CORE_FIELD_IDS.has(field.id)) return field;
-    const defaultField = getDefaultFieldById(field.id);
     return {
-      ...field,
-      type: defaultField?.type || field.type,
+      ...cloneCheckoutField(source),
+      type: fallback?.type || source.type,
       required: true,
       locked: true
     };
-  });
+  }).filter(Boolean);
+
+  return [...cores, ...extras];
 }
 
 function cloneCheckoutField(field) {
@@ -409,18 +406,12 @@ function renderShop() {
     }
 
     const primaryEmail = String(formData.get("fullName") || "").trim();
-    const eafcId = String(formData.get("email") || "").trim();
     const extraField1 = String(formData.get("eafcTag") || "").trim();
     const extraField2 = String(formData.get("extraInfo2") || "").trim();
     const noRefundAck = formData.get("noRefundAck") === "on";
 
     if (!isValidEmail(primaryEmail)) {
       alert("Vul een geldig e-mailadres in bij EAFC E-mail.");
-      return null;
-    }
-
-    if (eafcId.length < 2) {
-      alert("Vul een geldige waarde in bij EAFC ID.");
       return null;
     }
 
@@ -435,7 +426,7 @@ function renderShop() {
     }
 
     const customFields = state.checkoutConfig.fields
-      .filter((field) => !["fullName", "email", "eafcTag", "extraInfo2"].includes(field.id))
+      .filter((field) => !["fullName", "eafcTag", "extraInfo2"].includes(field.id))
       .map((field) => ({
         id: field.id,
         label: field.label,
@@ -449,9 +440,9 @@ function renderShop() {
     );
 
     return {
-      fullName: eafcId,
+      fullName: primaryEmail,
       email: primaryEmail,
-      eafcTag: eafcId,
+      eafcTag: extraField1,
       customFields
     };
   }
