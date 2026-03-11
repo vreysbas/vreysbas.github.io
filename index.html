@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Conga Shop</title>
+  <title>EAFC 26 Hub Shop</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
@@ -12,7 +12,7 @@
 <body data-page="shop">
   <div class="bg-noise"></div>
   <header class="topbar">
-    <div class="brand">Conga Shop</div>
+    <div class="brand">EAFC 26 Hub</div>
     <nav>
       <button id="openCartBtn" class="ghost-btn">Winkelmand (<span id="cartCount">0</span>)</button>
       <a id="adminTabLink" href="admin.html" class="ghost-btn link-btn hidden">Admin Tab</a>
@@ -23,10 +23,10 @@
 
   <main class="layout">
     <section class="hero">
-      <h1>Welkom in de shop</h1>
-      <p>Kies producten, reken af en volg alles later in de admin tab.</p>
+      <h1>EAFC 26 Storefront</h1>
+      <p>Shop jouw upgrades, packs en guides. Jij beheert de producten zelf in de admin tab.</p>
       <p id="userWelcome" class="welcome-line">Niet ingelogd</p>
-      <p class="note">Let op: op GitHub Pages is een echte PayPal-verificatie via webhook niet mogelijk zonder backend. Deze versie bewaart betaalstatus in de browser.</p>
+      <p class="note">Real payment werkt via PayPal Checkout. Voeg je PayPal Client ID toe in payment-config.js om live betalingen te activeren.</p>
     </section>
 
     <section>
@@ -65,14 +65,16 @@
         </label>
         <label>Betaalmethode
           <select name="paymentMethod" required>
-            <option value="bancontact">Bancontact</option>
-            <option value="ideal">iDEAL</option>
             <option value="paypal">PayPal</option>
             <option value="card">Kaart</option>
             <option value="bank">Bankoverschrijving</option>
-            <option value="cash">Cash bij afhaling</option>
+            <option value="manual">Manuele afspraak</option>
           </select>
         </label>
+        <div id="paypalSection" class="paypal-section hidden">
+          <p class="small-line">Rond eerst je PayPal betaling af en plaats daarna de bestelling.</p>
+          <div id="paypalButtons"></div>
+        </div>
         <label>Betaalreferentie (optioneel)
           <input name="paymentReference" placeholder="bv. PAY-12345">
         </label>
@@ -121,6 +123,7 @@
   </section>
 
   <script src="email-config.js"></script>
+  <script src="payment-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

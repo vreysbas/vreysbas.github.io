@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin | Conga Shop</title>
+  <title>Admin | EAFC 26 Hub</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
@@ -12,7 +12,7 @@
 <body data-page="admin">
   <div class="bg-noise"></div>
   <header class="topbar">
-    <div class="brand">Conga Shop Admin</div>
+    <div class="brand">EAFC 26 Hub Admin</div>
     <nav>
       <a href="index.html" class="ghost-btn link-btn">Terug naar shop</a>
     </nav>
@@ -83,6 +83,26 @@
               </tr>
             </thead>
             <tbody id="accountsTableBody"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="table-card">
+        <div class="admin-header compact">
+          <h3>Producten</h3>
+          <button id="addProductBtn" class="ghost-btn">Nieuw product</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Naam</th>
+                <th>Prijs (EUR)</th>
+                <th>Acties</th>
+              </tr>
+            </thead>
+            <tbody id="productsTableBody"></tbody>
           </table>
         </div>
       </article>

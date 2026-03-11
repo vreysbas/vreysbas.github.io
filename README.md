@@ -1,17 +1,29 @@
-# Conga Shop (GitHub Pages)
+# EAFC 26 Hub Shop (GitHub Pages)
 
-Static webshop for `congaxd.me` / `vreysbas.github.io`.
+Static storefront with an EAFC 26-inspired theme and admin management.
 
 ## Features
-- Customer lands directly on a graphical store page
-- Product cards with "Koop nu" buttons
-- Shopping cart and checkout flow
-- Admin login:
-	- Username: `vreys.bas`
-	- Password: `admin12345`
-- Graphical admin dashboard with KPIs and order table
+- Shop page with cart, checkout and account login/register
+- Admin dashboard with KPI cards, order table and CSV export
+- Product management in admin (add/edit/delete manually)
+- PayPal Checkout integration (real payments) via client-side SDK
+- Optional order email notifications via Web3Forms
+
+## Default Admin
+- Username: `vreys.bas`
+- Password: `Kleerkast0428!`
+
+## Real Payment Setup (PayPal)
+1. Open `payment-config.js`
+2. Set `paypalClientId` to your PayPal app client ID
+3. Keep `currency` as `EUR` or change to your preferred currency
+4. Publish and test checkout
+
+## Optional Email Setup
+1. Open `email-config.js`
+2. Set your Web3Forms access key and sender fields
+3. Keep `enabled: true` only when configured
 
 ## Notes
-- This is a static site and runs fully in the browser.
-- Orders are stored in `localStorage` of the browser.
-- For production security and real payment handling, use a backend service.
+- This project is fully static and stores orders/products in browser `localStorage`.
+- For stronger security and server-side payment verification, add a backend with PayPal webhooks.

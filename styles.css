@@ -1,9 +1,11 @@
 ﻿:root {
-  --ink: #181818;
-  --brand: #c6441b;
-  --brand-2: #0f7e6e;
-  --card: rgba(255, 255, 255, 0.9);
-  --line: rgba(24, 24, 24, 0.15);
+  --ink: #f4f7f5;
+  --brand: #19d36b;
+  --brand-2: #0aa36a;
+  --card: rgba(8, 15, 20, 0.82);
+  --line: rgba(151, 197, 175, 0.25);
+  --muted: #9eb9ad;
+  --danger: #ff6d6d;
 }
 
 * { box-sizing: border-box; }
@@ -13,9 +15,9 @@ body {
   font-family: "Space Grotesk", sans-serif;
   color: var(--ink);
   background:
-    radial-gradient(circle at 20% 10%, #ffd2b8, transparent 28%),
-    radial-gradient(circle at 80% 12%, #b9f0dc, transparent 34%),
-    linear-gradient(140deg, #fef9ef, #efe9db);
+    radial-gradient(circle at 12% 6%, rgba(41, 198, 109, 0.22), transparent 28%),
+    radial-gradient(circle at 86% 12%, rgba(22, 130, 203, 0.25), transparent 34%),
+    linear-gradient(140deg, #071016, #0f1f29 44%, #111b24);
   min-height: 100vh;
 }
 
@@ -24,8 +26,8 @@ body {
   inset: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(to right, rgba(0,0,0,.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0,0,0,.03) 1px, transparent 1px);
+    linear-gradient(to right, rgba(255,255,255,.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,.03) 1px, transparent 1px);
   background-size: 28px 28px;
   z-index: -1;
 }
@@ -56,9 +58,10 @@ body {
 .note {
   margin-top: 10px;
   padding: 10px;
-  border-left: 4px solid #ef9a6f;
-  background: #fff6ee;
+  border-left: 4px solid #1bb868;
+  background: rgba(10, 35, 27, 0.8);
   border-radius: 8px;
+  color: var(--muted);
 }
 
 .welcome-line {
@@ -107,14 +110,14 @@ body {
 }
 
 .primary-btn {
-  background: linear-gradient(140deg, var(--brand), #e07a4e);
-  color: #fff;
+  background: linear-gradient(140deg, var(--brand), #2adf84);
+  color: #071112;
   font-weight: 700;
 }
 
 .ghost-btn,
 .link-btn {
-  background: #fff;
+  background: rgba(9, 22, 28, 0.8);
   border: 1px solid var(--line);
   color: var(--ink);
 }
@@ -142,6 +145,19 @@ body {
   padding: 9px;
   border: 1px dashed var(--line);
   border-radius: 10px;
+}
+
+.paypal-section {
+  padding: 10px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: rgba(8, 26, 32, 0.75);
+}
+
+.small-line {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.92rem;
 }
 
 .panel-foot { margin-top: 12px; }
@@ -183,6 +199,10 @@ input, textarea, select {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
+}
+
+.admin-header.compact {
+  margin-bottom: 10px;
 }
 
 .actions-row { display: flex; gap: 10px; }
@@ -232,9 +252,9 @@ th, td {
 }
 
 .danger-btn {
-  border: 1px solid #cf5f5f;
-  color: #8f1f1f;
-  background: #fff3f3;
+  border: 1px solid #c15656;
+  color: #ffd4d4;
+  background: rgba(124, 29, 29, 0.4);
 }
 
 .hidden { display: none !important; }

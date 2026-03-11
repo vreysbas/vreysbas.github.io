@@ -1,11 +1,10 @@
 ﻿const ADMIN_USER = "vreys.bas";
 const ADMIN_PASS = "Kleerkast0428!";
-const PRODUCTS = [
-  { id: 1, name: "Classic Hoodie", price: 59.99 },
-  { id: 2, name: "Sport Sneakers", price: 89.5 },
-  { id: 3, name: "Travel Backpack", price: 74.0 },
-  { id: 4, name: "Daily Water Bottle", price: 24.99 },
-  { id: 5, name: "Basic Fortnite Account", price: 10.0 }
+const DEFAULT_PRODUCTS = [
+  { id: 1, name: "EAFC 26 Meta Guide", price: 14.99 },
+  { id: 2, name: "Weekend League Coaching (30m)", price: 24.99 },
+  { id: 3, name: "Custom Tactics Pack", price: 9.99 },
+  { id: 4, name: "Squad Builder Review", price: 12.5 }
 ];
 
 const PAGE = document.body.dataset.page;
@@ -14,30 +13,54 @@ const MAIL_CONFIG = window.MAIL_CONFIG || {
   provider: "web3forms",
   accessKey: "",
   ownerEmail: "",
-  fromName: "Conga Shop",
-  fromEmail: "no-reply@congaxd.me",
+  fromName: "EAFC 26 Hub",
+  fromEmail: "no-reply@example.com",
   replyTo: ""
+};
+const PAYMENT_CONFIG = window.PAYMENT_CONFIG || {
+  provider: "paypal",
+  paypalClientId: "",
+  currency: "EUR"
 };
 
 const state = {
   cart: JSON.parse(localStorage.getItem("cart")) || [],
   orders: JSON.parse(localStorage.getItem("orders")) || [],
   accounts: JSON.parse(localStorage.getItem("accounts")) || [],
+  products: JSON.parse(localStorage.getItem("products")) || DEFAULT_PRODUCTS,
   currentUser: JSON.parse(sessionStorage.getItem("currentUser") || "null")
 };
+
+function ensureTestProduct() {
+  const testProductName = "Test betaling 0.01 EUR";
+  const existing = state.products.find((p) => p.name === testProductName);
+  if (existing) {
+    existing.price = 0.01;
+    return;
+  }
+
+  state.products.unshift({
+    id: Date.now(),
+    name: testProductName,
+    price: 0.01
+  });
+}
+
+let paypalSdkLoading = false;
+let paypalButtonsRendered = false;
+let paypalCaptureId = "";
 
 function ensureDefaultAdminAccount() {
   const adminIndex = state.accounts.findIndex((a) => a.username === ADMIN_USER && a.isAdmin);
   if (adminIndex === -1) {
     state.accounts.push({
       username: ADMIN_USER,
-      email: "admin@congashop.local",
+      email: "admin@eafc26hub.local",
       password: ADMIN_PASS,
       isAdmin: true,
       createdAt: new Date().toISOString()
     });
   } else {
-    // Keep admin account password in sync with the configured owner password.
     state.accounts[adminIndex].password = ADMIN_PASS;
   }
 }
@@ -46,6 +69,7 @@ function saveState() {
   localStorage.setItem("cart", JSON.stringify(state.cart));
   localStorage.setItem("orders", JSON.stringify(state.orders));
   localStorage.setItem("accounts", JSON.stringify(state.accounts));
+  localStorage.setItem("products", JSON.stringify(state.products));
   if (state.currentUser) {
     sessionStorage.setItem("currentUser", JSON.stringify(state.currentUser));
   } else {
@@ -77,10 +101,10 @@ async function sendNotificationEmail({ toEmail, toName, subject, message }) {
     const payload = {
       access_key: MAIL_CONFIG.accessKey,
       subject,
-      from_name: MAIL_CONFIG.fromName || "Conga Shop",
+      from_name: MAIL_CONFIG.fromName || "EAFC 26 Hub",
       to_email: toEmail,
       name: toName,
-      email: MAIL_CONFIG.fromEmail || "no-reply@congaxd.me",
+      email: MAIL_CONFIG.fromEmail || "no-reply@example.com",
       message,
       replyto: MAIL_CONFIG.replyTo || MAIL_CONFIG.ownerEmail || MAIL_CONFIG.fromEmail || ""
     };
@@ -89,15 +113,11 @@ async function sendNotificationEmail({ toEmail, toName, subject, message }) {
       payload.ccemail = MAIL_CONFIG.ownerEmail;
     }
 
-    const response = await fetch("https://api.web3forms.com/submit", {
+    await fetch("https://api.web3forms.com/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
-
-    if (!response.ok) {
-      console.error("Web3Forms request failed", response.status);
-    }
   } catch (error) {
     console.error("Email send failed:", error);
   }
@@ -116,6 +136,29 @@ function isValidAddress(address) {
 
 function isValidFullName(name) {
   return /^[a-zA-Z\s.'-]{2,}$/.test(name.trim());
+}
+
+async function ensurePaypalSdk() {
+  if (window.paypal) return true;
+  if (!PAYMENT_CONFIG.paypalClientId) return false;
+  if (paypalSdkLoading) {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    return Boolean(window.paypal);
+  }
+
+  paypalSdkLoading = true;
+  const script = document.createElement("script");
+  script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(PAYMENT_CONFIG.paypalClientId)}&currency=${encodeURIComponent(PAYMENT_CONFIG.currency || "EUR")}`;
+  script.async = true;
+
+  const loaded = await new Promise((resolve) => {
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.head.appendChild(script);
+  });
+
+  paypalSdkLoading = false;
+  return loaded && Boolean(window.paypal);
 }
 
 function renderShop() {
@@ -141,7 +184,7 @@ function renderShop() {
   }
 
   function renderProducts() {
-    productGrid.innerHTML = PRODUCTS.map((p) => `
+    productGrid.innerHTML = state.products.map((p) => `
       <article class="product-card">
         <h3>${p.name}</h3>
         <p class="price">EUR ${formatMoney(p.price)}</p>
@@ -171,7 +214,7 @@ function renderShop() {
   }
 
   function addToCart(productId) {
-    const product = PRODUCTS.find((x) => x.id === Number(productId));
+    const product = state.products.find((x) => x.id === Number(productId));
     if (!product) return;
     const existing = state.cart.find((x) => x.id === product.id);
     if (existing) existing.qty += 1;
@@ -189,6 +232,52 @@ function renderShop() {
   function toggle(id, show) {
     const node = document.getElementById(id);
     node.classList.toggle("hidden", !show);
+  }
+
+  async function renderPaypalButtonsIfNeeded(force = false) {
+    const method = document.querySelector('select[name="paymentMethod"]').value;
+    const section = document.getElementById("paypalSection");
+    const container = document.getElementById("paypalButtons");
+
+    if (method !== "paypal") {
+      section.classList.add("hidden");
+      return;
+    }
+
+    section.classList.remove("hidden");
+
+    if (!force && paypalButtonsRendered) return;
+    container.innerHTML = "";
+
+    const sdkReady = await ensurePaypalSdk();
+    if (!sdkReady) {
+      container.innerHTML = "<p class='small-line'>PayPal is nog niet geconfigureerd. Voeg een client ID toe in payment-config.js.</p>";
+      paypalButtonsRendered = false;
+      return;
+    }
+
+    window.paypal.Buttons({
+      createOrder: (data, actions) => {
+        const amount = formatMoney(cartTotal());
+        return actions.order.create({
+          purchase_units: [{ amount: { value: amount } }]
+        });
+      },
+      onApprove: async (data, actions) => {
+        const details = await actions.order.capture();
+        paypalCaptureId = details?.id || data.orderID || "";
+        const refInput = document.querySelector('input[name="paymentReference"]');
+        if (refInput && paypalCaptureId) {
+          refInput.value = paypalCaptureId;
+        }
+        alert("PayPal betaling geslaagd. Je kan nu de bestelling plaatsen.");
+      },
+      onError: () => {
+        alert("PayPal betaling mislukte. Probeer opnieuw.");
+      }
+    }).render("#paypalButtons");
+
+    paypalButtonsRendered = true;
   }
 
   function placeOrder(formData) {
@@ -212,15 +301,20 @@ function renderShop() {
     }
 
     if (!isValidAddress(address)) {
-      alert("Vul een geldig adres in (straat + nummer, min. 8 tekens).");
+      alert("Vul een geldig adres in (straat + nummer, min. 8 tekens).\");
       return;
     }
 
-    const method = formData.get("paymentMethod");
-    const reference = (formData.get("paymentReference") || "").trim();
+    const method = String(formData.get("paymentMethod") || "manual");
+    const reference = String(formData.get("paymentReference") || "").trim();
     const total = cartTotal();
 
-    const isMarkedPaid = method !== "cash" && reference.length > 0;
+    if (method === "paypal" && !reference) {
+      alert("Rond eerst de PayPal betaling af.");
+      return;
+    }
+
+    const isMarkedPaid = method === "paypal" ? Boolean(reference) : reference.length > 0;
     const paymentStatus = isMarkedPaid ? "paid" : "pending";
     const paidAmount = isMarkedPaid ? total : 0;
 
@@ -236,7 +330,7 @@ function renderShop() {
       paymentMethod: method,
       paymentStatus,
       paidAmount,
-      paymentReference: reference,
+      paymentReference: reference || paypalCaptureId,
       createdAt: new Date().toISOString()
     };
 
@@ -249,10 +343,11 @@ function renderShop() {
     sendNotificationEmail({
       toEmail: order.email,
       toName: order.fullName,
-      subject: `Conga Shop - Bevestiging bestelling ${order.id}`,
-      message: `Beste ${order.fullName},\n\nHartelijk dank voor je bestelling bij Conga Shop.\n\nBestelgegevens\n- Bestelnummer: ${order.id}\n- Datum: ${new Date(order.createdAt).toLocaleString()}\n- Totaalbedrag: EUR ${formatMoney(order.total)}\n- Betaalmethode: ${order.paymentMethod}\n- Betaalstatus: ${order.paymentStatus}\n- Orderstatus: ${order.orderStatus}\n\nLeveradres\n${order.address}\n\nWe houden je op de hoogte wanneer de status van je bestelling verandert.\n\nMet vriendelijke groeten,\nConga Shop\nSupport: support@congaxd.me`
+      subject: `EAFC 26 Hub - Bevestiging bestelling ${order.id}`,
+      message: `Beste ${order.fullName},\n\nBedankt voor je bestelling bij EAFC 26 Hub.\n\nBestelgegevens\n- Bestelnummer: ${order.id}\n- Datum: ${new Date(order.createdAt).toLocaleString()}\n- Totaalbedrag: EUR ${formatMoney(order.total)}\n- Betaalmethode: ${order.paymentMethod}\n- Betaalstatus: ${order.paymentStatus}\n\nMet vriendelijke groeten,\nEAFC 26 Hub`
     });
 
+    paypalCaptureId = "";
     alert("Bestelling geplaatst!");
   }
 
@@ -265,13 +360,21 @@ function renderShop() {
 
   document.getElementById("openCartBtn").addEventListener("click", () => toggle("cartPanel", true));
   document.getElementById("closeCartBtn").addEventListener("click", () => toggle("cartPanel", false));
-  document.getElementById("checkoutBtn").addEventListener("click", () => toggle("checkoutModal", true));
+  document.getElementById("checkoutBtn").addEventListener("click", async () => {
+    toggle("checkoutModal", true);
+    await renderPaypalButtonsIfNeeded(true);
+  });
   document.getElementById("closeCheckoutBtn").addEventListener("click", () => toggle("checkoutModal", false));
   document.getElementById("openAuthBtn").addEventListener("click", () => {
     authError.textContent = "";
     toggle("authModal", true);
   });
   document.getElementById("closeAuthBtn").addEventListener("click", () => toggle("authModal", false));
+
+  document.querySelector('select[name="paymentMethod"]').addEventListener("change", async () => {
+    paypalButtonsRendered = false;
+    await renderPaypalButtonsIfNeeded(true);
+  });
 
   document.getElementById("showLoginTabBtn").addEventListener("click", () => {
     document.getElementById("loginForm").classList.remove("hidden");
@@ -339,13 +442,6 @@ function renderShop() {
     e.target.reset();
     toggle("authModal", false);
     updateAuthUi();
-
-    sendNotificationEmail({
-      toEmail: newAccount.email,
-      toName: newAccount.username,
-      subject: "Conga Shop - Account succesvol aangemaakt",
-      message: `Beste ${newAccount.username},\n\nJe account is succesvol aangemaakt bij Conga Shop.\n\nAccountgegevens\n- Gebruikersnaam: ${newAccount.username}\n- E-mail: ${newAccount.email}\n- Aangemaakt op: ${new Date(newAccount.createdAt).toLocaleString()}\n\nJe kan nu bestellingen plaatsen en je gegevens beheren.\n\nMet vriendelijke groeten,\nConga Shop\nSupport: support@congaxd.me`
-    });
   });
 
   document.getElementById("logoutBtn").addEventListener("click", () => {
@@ -375,6 +471,7 @@ function renderAdminPage() {
   const kpiCustomers = document.getElementById("kpiCustomers");
   const orderTableBody = document.getElementById("orderTableBody");
   const accountsTableBody = document.getElementById("accountsTableBody");
+  const productsTableBody = document.getElementById("productsTableBody");
 
   function showAdminAccess(show) {
     adminAccessDenied.classList.toggle("hidden", show);
@@ -414,7 +511,6 @@ function renderAdminPage() {
               <select data-order-status="${o.id}">
                 <option value="new" ${o.orderStatus === "new" ? "selected" : ""}>new</option>
                 <option value="processing" ${o.orderStatus === "processing" ? "selected" : ""}>processing</option>
-                <option value="shipped" ${o.orderStatus === "shipped" ? "selected" : ""}>shipped</option>
                 <option value="completed" ${o.orderStatus === "completed" ? "selected" : ""}>completed</option>
                 <option value="cancelled" ${o.orderStatus === "cancelled" ? "selected" : ""}>cancelled</option>
               </select>
@@ -428,18 +524,33 @@ function renderAdminPage() {
 
     if (state.accounts.length === 0) {
       accountsTableBody.innerHTML = "<tr><td colspan='5'>Nog geen accounts.</td></tr>";
-      return;
+    } else {
+      accountsTableBody.innerHTML = state.accounts.map((a, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${a.username}</td>
+          <td>${a.email || "-"}</td>
+          <td>${a.isAdmin ? "admin" : "user"}</td>
+          <td>${new Date(a.createdAt).toLocaleString()}</td>
+        </tr>
+      `).join("");
     }
 
-    accountsTableBody.innerHTML = state.accounts.map((a, idx) => `
-      <tr>
-        <td>${idx + 1}</td>
-        <td>${a.username}</td>
-        <td>${a.email || "-"}</td>
-        <td>${a.isAdmin ? "admin" : "user"}</td>
-        <td>${new Date(a.createdAt).toLocaleString()}</td>
-      </tr>
-    `).join("");
+    if (state.products.length === 0) {
+      productsTableBody.innerHTML = "<tr><td colspan='4'>Nog geen producten.</td></tr>";
+    } else {
+      productsTableBody.innerHTML = state.products.map((p, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${p.name}</td>
+          <td>EUR ${formatMoney(p.price)}</td>
+          <td>
+            <button class="ghost-btn" data-edit-product="${p.id}">Edit</button>
+            <button class="ghost-btn danger-btn" data-delete-product="${p.id}">Delete</button>
+          </td>
+        </tr>
+      `).join("");
+    }
   }
 
   function exportOrdersCsv() {
@@ -505,6 +616,26 @@ function renderAdminPage() {
     window.location.href = "index.html";
   });
 
+  document.getElementById("addProductBtn").addEventListener("click", () => {
+    const name = prompt("Productnaam:");
+    if (!name) return;
+    const priceText = prompt("Prijs in EUR (bv. 19.99):", "19.99");
+    if (!priceText) return;
+    const price = Number(priceText);
+    if (!Number.isFinite(price) || price <= 0) {
+      alert("Ongeldige prijs.");
+      return;
+    }
+
+    state.products.push({
+      id: Date.now(),
+      name: name.trim(),
+      price: Number(price.toFixed(2))
+    });
+    saveState();
+    renderAdminData();
+  });
+
   document.getElementById("exportOrdersBtn").addEventListener("click", exportOrdersCsv);
   document.getElementById("exportAccountsBtn").addEventListener("click", exportAccountsCsv);
 
@@ -517,19 +648,9 @@ function renderAdminPage() {
       if (!selectEl) return;
       const order = state.orders.find((o) => o.id === saveOrderId);
       if (!order) return;
-      const previousStatus = order.orderStatus || "new";
       order.orderStatus = selectEl.value;
       saveState();
       renderAdminData();
-
-      if (order.orderStatus !== previousStatus && isValidEmail(order.email)) {
-        sendNotificationEmail({
-          toEmail: order.email,
-          toName: order.fullName,
-          subject: `Conga Shop - Statusupdate bestelling ${order.id}`,
-          message: `Beste ${order.fullName},\n\nEr is een update voor je bestelling bij Conga Shop.\n\nUpdate\n- Bestelnummer: ${order.id}\n- Nieuwe orderstatus: ${order.orderStatus}\n- Betaalstatus: ${order.paymentStatus}\n\nJe ontvangt automatisch een nieuwe melding wanneer er opnieuw een wijziging is.\n\nMet vriendelijke groeten,\nConga Shop\nSupport: support@congaxd.me`
-        });
-      }
       return;
     }
 
@@ -539,15 +660,36 @@ function renderAdminPage() {
       order.orderStatus = "cancelled";
       saveState();
       renderAdminData();
+    }
+  });
 
-      if (isValidEmail(order.email)) {
-        sendNotificationEmail({
-          toEmail: order.email,
-          toName: order.fullName,
-          subject: `Conga Shop - Bestelling ${order.id} geannuleerd`,
-          message: `Beste ${order.fullName},\n\nJe bestelling werd geannuleerd in ons systeem.\n\nAnnulatiegegevens\n- Bestelnummer: ${order.id}\n- Datum annulatie: ${new Date().toLocaleString()}\n- Laatste gekende betaalstatus: ${order.paymentStatus}\n\nAls dit onverwacht is, neem dan contact op met support@congaxd.me en vermeld je bestelnummer.\n\nMet vriendelijke groeten,\nConga Shop`
-        });
+  productsTableBody.addEventListener("click", (e) => {
+    const editId = Number(e.target.getAttribute("data-edit-product"));
+    const deleteId = Number(e.target.getAttribute("data-delete-product"));
+
+    if (editId) {
+      const product = state.products.find((p) => p.id === editId);
+      if (!product) return;
+      const newName = prompt("Nieuwe naam:", product.name);
+      if (!newName) return;
+      const newPriceText = prompt("Nieuwe prijs (EUR):", String(product.price));
+      if (!newPriceText) return;
+      const newPrice = Number(newPriceText);
+      if (!Number.isFinite(newPrice) || newPrice <= 0) {
+        alert("Ongeldige prijs.");
+        return;
       }
+      product.name = newName.trim();
+      product.price = Number(newPrice.toFixed(2));
+      saveState();
+      renderAdminData();
+      return;
+    }
+
+    if (deleteId) {
+      state.products = state.products.filter((p) => p.id !== deleteId);
+      saveState();
+      renderAdminData();
     }
   });
 
@@ -560,6 +702,7 @@ function renderAdminPage() {
 }
 
 ensureDefaultAdminAccount();
+ensureTestProduct();
 saveState();
 
 if (PAGE === "shop") {
