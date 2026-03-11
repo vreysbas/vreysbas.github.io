@@ -41,15 +41,28 @@
         <article class="kpi-card"><p>Omzet</p><h3>EUR <span id="kpiRevenue">0.00</span></h3></article>
         <article class="kpi-card"><p>Betaald</p><h3>EUR <span id="kpiPaid">0.00</span></h3></article>
         <article class="kpi-card"><p>Klanten</p><h3 id="kpiCustomers">0</h3></article>
+        <article class="kpi-card"><p>Pending betalingen</p><h3 id="kpiPendingPayments">0</h3></article>
       </div>
 
       <article class="table-card">
-        <h3>Orders</h3>
+        <div class="admin-header compact">
+          <h3>Orders</h3>
+          <div class="admin-filters">
+            <input id="orderSearchInput" type="text" placeholder="Zoek op order-ID, klant, e-mail of EAFC ID">
+            <select id="paymentStatusFilter">
+              <option value="all">Alle betaalstatussen</option>
+              <option value="pending">Alleen pending</option>
+              <option value="paid">Alleen paid</option>
+            </select>
+            <button id="clearFiltersBtn" class="ghost-btn">Reset filters</button>
+          </div>
+        </div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>#</th>
+                <th>Order-ID</th>
                 <th>Klant</th>
                 <th>E-mail</th>
                 <th>EAFC ID</th>

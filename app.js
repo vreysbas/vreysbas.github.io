@@ -127,6 +127,17 @@ function isValidEafcTag(tag) {
   return tag.trim().length >= 2;
 }
 
+function generateReadableOrderId() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const h = String(now.getHours()).padStart(2, "0");
+  const min = String(now.getMinutes()).padStart(2, "0");
+  const suffix = Math.floor(1000 + Math.random() * 9000);
+  return `EA26-${y}${m}${d}-${h}${min}-${suffix}`;
+}
+
 function renderShop() {
   const productGrid = document.getElementById("productGrid");
   const cartCount = document.getElementById("cartCount");
@@ -209,6 +220,7 @@ function renderShop() {
     const fullName = String(formData.get("fullName") || "").trim();
     const email = String(formData.get("email") || "").trim();
     const eafcTag = String(formData.get("eafcTag") || "").trim();
+    const noRefundAck = formData.get("noRefundAck") === "on";
 
     if (!isValidFullName(fullName)) {
       alert("Vul een geldige naam in.");
@@ -225,6 +237,11 @@ function renderShop() {
       return null;
     }
 
+    if (!noRefundAck) {
+      alert("Je moet bevestigen dat foutieve betalingen niet terugbetaald worden.");
+      return null;
+    }
+
     return { fullName, email, eafcTag };
   }
 
@@ -236,7 +253,7 @@ function renderShop() {
     const instructions = document.getElementById("manualPaymentInstructions");
     const summary = document.getElementById("manualPaymentSummary");
     const total = cartTotal();
-    const orderId = crypto.randomUUID();
+    const orderId = generateReadableOrderId();
 
     const order = {
       id: orderId,
@@ -264,14 +281,15 @@ function renderShop() {
       <strong>Te betalen:</strong> EUR ${formatMoney(order.total)}<br>
       <strong>PayPal account:</strong> ${PAYPAL_TRANSFER_EMAIL}<br>
       <strong>Order-ID voor beschrijving:</strong> ${order.id}<br>
-      <strong>Belangrijk:</strong> Zonder dit order-ID in de beschrijving kunnen we je betaling niet koppelen.
+      <strong>Belangrijk:</strong> Zonder dit order-ID in de beschrijving kunnen we je betaling niet koppelen.<br>
+      <strong>Refund policy:</strong> Bij foutieve betaling is er geen refund mogelijk.
     `;
 
     sendNotificationEmail({
       toEmail: order.email,
       toName: order.fullName,
       subject: `EAFC 26 Hub - Bevestiging bestelling ${order.id}`,
-      message: `Beste ${order.fullName},\n\nBedankt voor je bestelling bij EAFC 26 Hub.\n\nBestelgegevens\n- Bestelnummer: ${order.id}\n- Datum: ${new Date(order.createdAt).toLocaleString()}\n- Totaalbedrag: EUR ${formatMoney(order.total)}\n- EAFC gebruikersnaam: ${order.eafcTag}\n- Betaalmethode: Manuele PayPal overschrijving\n\nBetaal nu naar: ${PAYPAL_TRANSFER_EMAIL}\nVermeld verplicht dit order-ID in de beschrijving: ${order.id}\n\nNa controle zetten we je order op betaald.\n\nMet vriendelijke groeten,\nEAFC 26 Hub`
+      message: `Beste ${order.fullName},\n\nBedankt voor je bestelling bij EAFC 26 Hub.\n\nBestelgegevens\n- Bestelnummer: ${order.id}\n- Datum: ${new Date(order.createdAt).toLocaleString()}\n- Totaalbedrag: EUR ${formatMoney(order.total)}\n- EAFC gebruikersnaam: ${order.eafcTag}\n- Betaalmethode: Manuele PayPal overschrijving\n\nBetaal nu naar: ${PAYPAL_TRANSFER_EMAIL}\nVermeld verplicht dit order-ID in de beschrijving: ${order.id}\n\nRefund policy: Bij foutieve betaling (verkeerd bedrag, verkeerde ontvanger of ontbrekend order-ID) is er geen refund mogelijk.\n\nNa controle zetten we je order op betaald.\n\nMet vriendelijke groeten,\nEAFC 26 Hub`
     });
 
     alert("Order aangemaakt. Volg nu de betaalinstructies in het checkoutvenster.");
@@ -397,9 +415,30 @@ function renderAdminPage() {
   const kpiRevenue = document.getElementById("kpiRevenue");
   const kpiPaid = document.getElementById("kpiPaid");
   const kpiCustomers = document.getElementById("kpiCustomers");
+  const kpiPendingPayments = document.getElementById("kpiPendingPayments");
   const orderTableBody = document.getElementById("orderTableBody");
   const accountsTableBody = document.getElementById("accountsTableBody");
   const productsTableBody = document.getElementById("productsTableBody");
+  const orderSearchInput = document.getElementById("orderSearchInput");
+  const paymentStatusFilter = document.getElementById("paymentStatusFilter");
+
+  function getFilteredOrders() {
+    const query = (orderSearchInput.value || "").trim().toLowerCase();
+    const paymentFilter = paymentStatusFilter.value;
+
+    return state.orders.filter((o) => {
+      const textMatch = !query || [
+        o.id,
+        o.fullName,
+        o.email,
+        o.eafcTag,
+        o.paymentReference
+      ].filter(Boolean).some((v) => String(v).toLowerCase().includes(query));
+
+      const paymentMatch = paymentFilter === "all" || o.paymentStatus === paymentFilter;
+      return textMatch && paymentMatch;
+    });
+  }
 
   function showAdminAccess(show) {
     adminAccessDenied.classList.toggle("hidden", show);
@@ -411,18 +450,25 @@ function renderAdminPage() {
     const totalRevenue = state.orders.reduce((s, o) => s + Number(o.total || 0), 0);
     const totalPaid = state.orders.reduce((s, o) => s + Number(o.paidAmount || 0), 0);
     const uniqueCustomers = new Set(state.orders.map((o) => o.email)).size;
+    const pendingPayments = state.orders.filter((o) => o.paymentStatus !== "paid").length;
+    const visibleOrders = getFilteredOrders();
 
     kpiOrders.textContent = totalOrders;
     kpiRevenue.textContent = formatMoney(totalRevenue);
     kpiPaid.textContent = formatMoney(totalPaid);
     kpiCustomers.textContent = uniqueCustomers;
+    kpiPendingPayments.textContent = pendingPayments;
 
-    if (state.orders.length === 0) {
-      orderTableBody.innerHTML = "<tr><td colspan='13'>Nog geen bestellingen.</td></tr>";
+    if (visibleOrders.length === 0) {
+      orderTableBody.innerHTML = "<tr><td colspan='14'>Geen bestellingen voor deze filter.</td></tr>";
     } else {
-      orderTableBody.innerHTML = state.orders.map((o, idx) => `
+      orderTableBody.innerHTML = visibleOrders.map((o, idx) => `
         <tr>
           <td>${idx + 1}</td>
+          <td>
+            <strong>${o.id}</strong><br>
+            <button class="ghost-btn" data-copy-order-id="${o.id}">Copy</button>
+          </td>
           <td>${o.fullName}</td>
           <td>${o.email}</td>
           <td>${o.eafcTag || "-"}</td>
@@ -443,6 +489,7 @@ function renderAdminPage() {
                 <option value="cancelled" ${o.orderStatus === "cancelled" ? "selected" : ""}>cancelled</option>
               </select>
               <button class="ghost-btn" data-save-order="${o.id}">Opslaan</button>
+              <button class="ghost-btn" data-mark-paid="${o.id}">Mark paid</button>
               <button class="ghost-btn danger-btn" data-cancel-order="${o.id}">Cancel</button>
             </div>
           </td>
@@ -483,11 +530,12 @@ function renderAdminPage() {
 
   function exportOrdersCsv() {
     const headers = [
-      "OrderNr", "Klant", "Email", "EAFCID", "Items", "TotaalEUR",
+      "OrderID", "VolgNr", "Klant", "Email", "EAFCID", "Items", "TotaalEUR",
       "BetaaldEUR", "OrderStatus", "PaymentStatus", "Methode", "Referentie", "Tijdstip"
     ];
 
     const rows = state.orders.map((o, idx) => [
+      o.id,
       idx + 1,
       o.fullName,
       o.email,
@@ -566,10 +614,26 @@ function renderAdminPage() {
 
   document.getElementById("exportOrdersBtn").addEventListener("click", exportOrdersCsv);
   document.getElementById("exportAccountsBtn").addEventListener("click", exportAccountsCsv);
+  document.getElementById("clearFiltersBtn").addEventListener("click", () => {
+    orderSearchInput.value = "";
+    paymentStatusFilter.value = "all";
+    renderAdminData();
+  });
+  orderSearchInput.addEventListener("input", renderAdminData);
+  paymentStatusFilter.addEventListener("change", renderAdminData);
 
   orderTableBody.addEventListener("click", (e) => {
     const saveOrderId = e.target.getAttribute("data-save-order");
     const cancelOrderId = e.target.getAttribute("data-cancel-order");
+    const markPaidId = e.target.getAttribute("data-mark-paid");
+    const copyOrderId = e.target.getAttribute("data-copy-order-id");
+
+    if (copyOrderId) {
+      navigator.clipboard.writeText(copyOrderId)
+        .then(() => alert(`Order-ID gekopieerd: ${copyOrderId}`))
+        .catch(() => alert(`Copy mislukt. Gebruik handmatig dit ID: ${copyOrderId}`));
+      return;
+    }
 
     if (saveOrderId) {
       const selectEl = document.querySelector(`select[data-order-status="${saveOrderId}"]`);
@@ -586,6 +650,16 @@ function renderAdminPage() {
       const order = state.orders.find((o) => o.id === cancelOrderId);
       if (!order) return;
       order.orderStatus = "cancelled";
+      saveState();
+      renderAdminData();
+      return;
+    }
+
+    if (markPaidId) {
+      const order = state.orders.find((o) => o.id === markPaidId);
+      if (!order) return;
+      order.paymentStatus = "paid";
+      order.paidAmount = Number(order.total || 0);
       saveState();
       renderAdminData();
     }

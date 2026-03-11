@@ -63,6 +63,13 @@
         <label>EAFC gebruikersnaam
           <input name="eafcTag" required placeholder="bv. VreysBas">
         </label>
+        <div class="refund-warning">
+          <strong>Belangrijk:</strong> Als je fout betaalt (verkeerd bedrag, verkeerde ontvanger of zonder correct order-ID), is er geen refund mogelijk.
+        </div>
+        <label class="checkbox-line">
+          <input type="checkbox" name="noRefundAck" required>
+          Ik begrijp dat foutieve betalingen niet terugbetaald worden.
+        </label>
         <button type="submit" class="primary-btn">Order aanmaken</button>
         <p id="checkoutStatus" class="small-line"></p>
         <div id="manualPaymentInstructions" class="paypal-section hidden">
@@ -71,6 +78,7 @@
             <li>Open PayPal en kies geld verzenden.</li>
             <li>Stuur exact het orderbedrag naar <strong>congaxd@gmail.com</strong>.</li>
             <li>Zet je order-ID in de beschrijving.</li>
+            <li>Bij fouten in bedrag, ontvanger of beschrijving is er geen refund mogelijk.</li>
             <li>Na betaling controleren wij handmatig en zetten we je order op betaald.</li>
           </ol>
           <p id="manualPaymentSummary" class="small-line"></p>

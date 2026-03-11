@@ -168,6 +168,25 @@ body {
   color: var(--ink);
 }
 
+.refund-warning {
+  border: 1px solid #c15656;
+  color: #ffdede;
+  background: rgba(124, 29, 29, 0.35);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.checkbox-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+}
+
+.checkbox-line input {
+  width: auto;
+}
+
 #manualPaymentSummary {
   margin-top: 10px;
   padding: 10px;
@@ -222,6 +241,18 @@ input, textarea, select {
 }
 
 .actions-row { display: flex; gap: 10px; }
+
+.admin-filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.admin-filters input,
+.admin-filters select {
+  min-width: 220px;
+}
 
 .kpi-grid {
   display: grid;
@@ -283,4 +314,7 @@ th, td {
   .kpi-grid { grid-template-columns: 1fr; }
   .actions-row { width: 100%; }
   .actions-row .ghost-btn { flex: 1; }
+  .admin-filters input,
+  .admin-filters select,
+  .admin-filters .ghost-btn { width: 100%; }
 }
