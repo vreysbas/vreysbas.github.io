@@ -154,6 +154,20 @@ body {
   background: rgba(8, 26, 32, 0.75);
 }
 
+.status-guide {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(12, 26, 31, 0.72);
+  margin-bottom: 12px;
+}
+
+.admin-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px 14px;
+}
+
 .small-line {
   margin: 0 0 8px;
   color: var(--muted);
@@ -193,6 +207,20 @@ body {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: rgba(12, 34, 42, 0.7);
+}
+
+.order-card {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(12, 34, 42, 0.7);
+}
+
+.order-meta {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 0.95rem;
 }
 
 .panel-foot { margin-top: 12px; }

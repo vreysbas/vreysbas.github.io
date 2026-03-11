@@ -15,6 +15,7 @@
     <div class="brand">EAFC 26 Hub</div>
     <nav>
       <button id="openCartBtn" class="ghost-btn">Winkelmand (<span id="cartCount">0</span>)</button>
+      <button id="openOrdersBtn" class="ghost-btn">Mijn orders</button>
       <a id="adminTabLink" href="admin.html" class="ghost-btn link-btn hidden">Admin Tab</a>
       <button id="openAuthBtn" class="ghost-btn">Login / Register</button>
       <button id="logoutBtn" class="ghost-btn hidden">Logout</button>
@@ -45,6 +46,22 @@
       <p>Totaal: EUR <span id="cartTotal">0.00</span></p>
       <button id="checkoutBtn" class="primary-btn">Ga naar checkout</button>
     </div>
+  </aside>
+
+  <aside id="ordersPanel" class="panel hidden">
+    <div class="panel-head">
+      <h3>Mijn orders</h3>
+      <button id="closeOrdersBtn" class="close-btn">x</button>
+    </div>
+    <div class="status-guide">
+      <p class="small-line"><strong>Zo lees je je order:</strong></p>
+      <p class="small-line">awaiting_payment: nog niet betaald</p>
+      <p class="small-line">payment_review: betaling wordt gecontroleerd</p>
+      <p class="small-line">queued: order staat klaar in wachtrij</p>
+      <p class="small-line">in_progress: we zijn bezig</p>
+      <p class="small-line">completed: order afgerond</p>
+    </div>
+    <div id="customerOrdersList" class="stack"></div>
   </aside>
 
   <section id="checkoutModal" class="modal hidden">
@@ -82,6 +99,7 @@
             <li>Na betaling controleren wij handmatig en zetten we je order op betaald.</li>
           </ol>
           <p id="manualPaymentSummary" class="small-line"></p>
+          <p class="small-line">Na het aanmaken vind je je order ook terug in de tab Mijn orders.</p>
         </div>
       </form>
     </div>

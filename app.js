@@ -27,6 +27,18 @@ const state = {
   currentUser: JSON.parse(sessionStorage.getItem("currentUser") || "null")
 };
 
+function getStoredCustomerOrderIds() {
+  return JSON.parse(localStorage.getItem("customerOrderIds") || "[]");
+}
+
+function storeCustomerOrderId(orderId) {
+  const ids = getStoredCustomerOrderIds();
+  if (!ids.includes(orderId)) {
+    ids.unshift(orderId);
+    localStorage.setItem("customerOrderIds", JSON.stringify(ids.slice(0, 50)));
+  }
+}
+
 function ensureTestProduct() {
   const testProductName = "Test betaling 0.01 EUR";
   const existing = state.products.find((p) => p.name === testProductName);
@@ -143,6 +155,7 @@ function renderShop() {
   const cartCount = document.getElementById("cartCount");
   const cartTotalEl = document.getElementById("cartTotal");
   const cartItems = document.getElementById("cartItems");
+  const customerOrdersList = document.getElementById("customerOrdersList");
   const adminTabLink = document.getElementById("adminTabLink");
   const userWelcome = document.getElementById("userWelcome");
   const openAuthBtn = document.getElementById("openAuthBtn");
@@ -190,6 +203,37 @@ function renderShop() {
     `).join("");
   }
 
+  function renderCustomerOrders() {
+    const storedOrderIds = getStoredCustomerOrderIds();
+    const orders = state.orders.filter((order) => {
+      if (state.currentUser?.email) {
+        return order.email === state.currentUser.email;
+      }
+      return storedOrderIds.includes(order.id);
+    });
+
+    if (orders.length === 0) {
+      customerOrdersList.innerHTML = "<p>Je hebt nog geen orders.</p>";
+      return;
+    }
+
+    customerOrdersList.innerHTML = orders.map((order) => `
+      <article class="order-card">
+        <div class="panel-head">
+          <strong>${order.id}</strong>
+          <span class="status-badge ${order.paymentStatus === "paid" ? "paid" : "pending"}">${order.paymentStatus}</span>
+        </div>
+        <div class="order-meta">
+          <span><strongOrderstatus:</strong> ${order.orderStatus}</span>
+          <span><strong>Totaal:</strong> EUR ${formatMoney(order.total)}</span>
+          <span><strong>EAFC ID:</strong> ${order.eafcTag || "-"}</span>
+          <span><strong>Items:</strong> ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}</span>
+          <span><strong>Uitleg:</strong> ${order.paymentStatus === "paid" ? "Betaling ontvangen, check de orderstatus voor de voortgang." : "Betaal handmatig naar congaxd@gmail.com met dit order-ID in de beschrijving."}</span>
+        </div>
+      </article>
+    `).join("");
+  }
+
   function addToCart(productId) {
     const product = state.products.find((x) => x.id === Number(productId));
     if (!product) return;
@@ -203,7 +247,7 @@ function renderShop() {
   function removeFromCart(productId) {
     state.cart = state.cart.filter((x) => x.id !== Number(productId));
     saveState();
-    renderCart();
+    2renderCart();
   }
 
   function toggle(id, show) {
@@ -217,8 +261,8 @@ function renderShop() {
       return null;
     }
 
-    const fullName = String(formData.get("fullName") || "").trim();
-    const email = String(formData.get("email") || "").trim();
+    const fullName = String(formData.get("EAFC 26 email") || "").trim();
+    const email = String(formData.get("EAFC") || "").trim();
     const eafcTag = String(formData.get("eafcTag") || "").trim();
     const noRefundAck = formData.get("noRefundAck") === "on";
 
@@ -263,7 +307,7 @@ function renderShop() {
       eafcTag: checkoutData.eafcTag,
       items: [...state.cart],
       total,
-      orderStatus: "new",
+      orderStatus: "awaiting_payment",
       paymentMethod: "paypal-manual-transfer",
       paymentStatus: "pending",
       paidAmount: 0,
@@ -272,9 +316,11 @@ function renderShop() {
     };
 
     state.orders.unshift(order);
+    storeCustomerOrderId(order.id);
     state.cart = [];
     saveState();
     renderCart();
+    renderCustomerOrders();
     instructions.classList.remove("hidden");
     checkoutStatus.textContent = "Order aangemaakt. Betaal nu exact volgens onderstaande stappen.";
     summary.innerHTML = `
@@ -304,6 +350,11 @@ function renderShop() {
 
   document.getElementById("openCartBtn").addEventListener("click", () => toggle("cartPanel", true));
   document.getElementById("closeCartBtn").addEventListener("click", () => toggle("cartPanel", false));
+  document.getElementById("openOrdersBtn").addEventListener("click", () => {
+    renderCustomerOrders();
+    toggle("ordersPanel", true);
+  });
+  document.getElementById("closeOrdersBtn").addEventListener("click", () => toggle("ordersPanel", false));
   document.getElementById("checkoutBtn").addEventListener("click", () => {
     toggle("checkoutModal", true);
     document.getElementById("checkoutStatus").textContent = "Maak eerst je order aan. Daarna zie je exact waar je moet betalen.";
@@ -395,6 +446,7 @@ function renderShop() {
     state.currentUser = null;
     saveState();
     updateAuthUi();
+    renderCustomerOrders();
   });
 
   document.getElementById("checkoutForm").addEventListener("submit", (e) => {
@@ -404,6 +456,7 @@ function renderShop() {
 
   renderProducts();
   renderCart();
+  renderCustomerOrders();
   updateAuthUi();
 }
 
@@ -483,9 +536,16 @@ function renderAdminPage() {
           <td>
             <div class="admin-actions">
               <select data-order-status="${o.id}">
-                <option value="new" ${o.orderStatus === "new" ? "selected" : ""}>new</option>
-                <option value="processing" ${o.orderStatus === "processing" ? "selected" : ""}>processing</option>
+                <option value="awaiting_payment" ${o.orderStatus === "awaiting_payment" ? "selected" : ""}>awaiting_payment</option>
+                <option value="payment_review" ${o.orderStatus === "payment_review" ? "selected" : ""}>payment_review</option>
+                <option value="paid" ${o.orderStatus === "paid" ? "selected" : ""}>paid</option>
+                <option value="queued" ${o.orderStatus === "queued" ? "selected" : ""}>queued</option>
+                <option value="in_progress" ${o.orderStatus === "in_progress" ? "selected" : ""}>in_progress</option>
+                <option value="need_info" ${o.orderStatus === "need_info" ? "selected" : ""}>need_info</option>
+                <option value="delivered" ${o.orderStatus === "delivered" ? "selected" : ""}>delivered</option>
                 <option value="completed" ${o.orderStatus === "completed" ? "selected" : ""}>completed</option>
+                <option value="on_hold" ${o.orderStatus === "on_hold" ? "selected" : ""}>on_hold</option>
+                <option value="dispute" ${o.orderStatus === "dispute" ? "selected" : ""}>dispute</option>
                 <option value="cancelled" ${o.orderStatus === "cancelled" ? "selected" : ""}>cancelled</option>
               </select>
               <button class="ghost-btn" data-save-order="${o.id}">Opslaan</button>
