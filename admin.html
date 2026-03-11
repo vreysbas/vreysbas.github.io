@@ -36,6 +36,12 @@
         </div>
       </header>
 
+      <div class="admin-quicknav">
+        <a href="#ordersSection" class="ghost-btn link-btn">Naar orders</a>
+        <a href="#checkoutBuilderSection" class="ghost-btn link-btn">Naar checkout builder</a>
+        <a href="#productsSection" class="ghost-btn link-btn">Naar producten</a>
+      </div>
+
       <div class="kpi-grid">
         <article class="kpi-card"><p>Bestellingen</p><h3 id="kpiOrders">0</h3></article>
         <article class="kpi-card"><p>Omzet</p><h3>EUR <span id="kpiRevenue">0.00</span></h3></article>
@@ -44,7 +50,7 @@
         <article class="kpi-card"><p>Pending betalingen</p><h3 id="kpiPendingPayments">0</h3></article>
       </div>
 
-      <article class="table-card">
+      <article id="ordersSection" class="table-card">
         <h3>Status overzicht</h3>
         <div class="status-guide admin-guide-grid">
           <p class="small-line"><strong>awaiting_payment</strong>: klant moet nog betalen</p>
@@ -61,7 +67,7 @@
         </div>
       </article>
 
-      <article class="table-card">
+      <article id="checkoutBuilderSection" class="table-card">
         <div class="admin-header compact">
           <h3>Orders</h3>
           <div class="admin-filters">
@@ -99,7 +105,7 @@
         </div>
       </article>
 
-      <article class="table-card">
+      <article id="productsSection" class="table-card">
         <h3>Accounts</h3>
         <div class="table-wrap">
           <table>

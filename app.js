@@ -78,6 +78,15 @@ function normalizeCheckoutConfig(input) {
 
 state.checkoutConfig = normalizeCheckoutConfig(JSON.parse(localStorage.getItem("checkoutConfig") || "null"));
 
+function hydrateStateFromStorage() {
+  state.cart = JSON.parse(localStorage.getItem("cart") || "[]");
+  state.orders = JSON.parse(localStorage.getItem("orders") || "[]");
+  state.accounts = JSON.parse(localStorage.getItem("accounts") || "[]");
+  state.products = JSON.parse(localStorage.getItem("products") || JSON.stringify(DEFAULT_PRODUCTS));
+  state.checkoutConfig = normalizeCheckoutConfig(JSON.parse(localStorage.getItem("checkoutConfig") || "null"));
+  state.currentUser = JSON.parse(sessionStorage.getItem("currentUser") || "null");
+}
+
 function getStoredCustomerOrderIds() {
   return JSON.parse(localStorage.getItem("customerOrderIds") || "[]");
 }
@@ -566,6 +575,18 @@ function renderShop() {
   renderCheckoutConfig();
   renderCustomerOrders();
   updateAuthUi();
+
+  const rerenderShop = () => {
+    hydrateStateFromStorage();
+    renderProducts();
+    renderCart();
+    renderCheckoutConfig();
+    renderCustomerOrders();
+    updateAuthUi();
+  };
+
+  window.addEventListener("storage", rerenderShop);
+  window.setInterval(rerenderShop, 4000);
 }
 
 function renderAdminPage() {
@@ -760,6 +781,7 @@ function renderAdminPage() {
               <button class="ghost-btn" data-save-order="${o.id}">Opslaan</button>
               <button class="ghost-btn" data-mark-paid="${o.id}">Mark paid</button>
               <button class="ghost-btn danger-btn" data-cancel-order="${o.id}">Cancel</button>
+              <button class="ghost-btn danger-btn" data-delete-order="${o.id}">Delete</button>
             </div>
           </td>
         </tr>
@@ -917,6 +939,7 @@ function renderAdminPage() {
     const cancelOrderId = e.target.getAttribute("data-cancel-order");
     const markPaidId = e.target.getAttribute("data-mark-paid");
     const copyOrderId = e.target.getAttribute("data-copy-order-id");
+    const deleteOrderId = e.target.getAttribute("data-delete-order");
 
     if (copyOrderId) {
       navigator.clipboard.writeText(copyOrderId)
@@ -950,6 +973,21 @@ function renderAdminPage() {
       if (!order) return;
       order.paymentStatus = "paid";
       order.paidAmount = Number(order.total || 0);
+      if (order.orderStatus === "awaiting_payment") {
+        order.orderStatus = "payment_review";
+      }
+      saveState();
+      renderAdminData();
+      return;
+    }
+
+    if (deleteOrderId) {
+      const order = state.orders.find((o) => o.id === deleteOrderId);
+      if (!order) return;
+      if (!confirm(`Verwijder order ${deleteOrderId} definitief uit het systeem?`)) {
+        return;
+      }
+      state.orders = state.orders.filter((o) => o.id !== deleteOrderId);
       saveState();
       renderAdminData();
     }
@@ -992,6 +1030,20 @@ function renderAdminPage() {
   } else {
     showAdminAccess(false);
   }
+
+  const rerenderAdmin = () => {
+    hydrateStateFromStorage();
+    if (state.currentUser?.isAdmin) {
+      renderCheckoutConfigEditor();
+      renderAdminData();
+      showAdminAccess(true);
+    } else {
+      showAdminAccess(false);
+    }
+  };
+
+  window.addEventListener("storage", rerenderAdmin);
+  window.setInterval(rerenderAdmin, 4000);
 }
 
 ensureDefaultAdminAccount();
