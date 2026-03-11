@@ -384,10 +384,9 @@ function renderShop() {
   function renderCustomerOrders() {
     const storedOrderIds = getStoredCustomerOrderIds();
     const orders = state.orders.filter((order) => {
-      if (state.currentUser?.email) {
-        return order.email === state.currentUser.email;
-      }
-      return storedOrderIds.includes(order.id);
+      const matchesLoggedInEmail = Boolean(state.currentUser?.email) && order.email === state.currentUser.email;
+      const matchesLocalOrder = storedOrderIds.includes(order.id);
+      return matchesLoggedInEmail || matchesLocalOrder;
     });
 
     if (orders.length === 0) {
