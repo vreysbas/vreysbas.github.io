@@ -60,25 +60,15 @@
         <label>E-mail
           <input type="email" name="email" required>
         </label>
-        <label>Adres
-          <textarea name="address" rows="3" required></textarea>
+        <label>EAFC gebruikersnaam
+          <input name="eafcTag" required placeholder="bv. VreysBas">
         </label>
-        <label>Betaalmethode
-          <select name="paymentMethod" required>
-            <option value="paypal">PayPal</option>
-            <option value="card">Kaart</option>
-            <option value="bank">Bankoverschrijving</option>
-            <option value="manual">Manuele afspraak</option>
-          </select>
-        </label>
+        <button type="button" id="startPaypalBtn" class="primary-btn">Verder naar PayPal</button>
+        <p id="checkoutStatus" class="small-line"></p>
         <div id="paypalSection" class="paypal-section hidden">
-          <p class="small-line">Rond eerst je PayPal betaling af en plaats daarna de bestelling.</p>
+          <p class="small-line">Bevestig hieronder je PayPal betaling. Bij een fout kan je meteen opnieuw proberen.</p>
           <div id="paypalButtons"></div>
         </div>
-        <label>Betaalreferentie (optioneel)
-          <input name="paymentReference" placeholder="bv. PAY-12345">
-        </label>
-        <button type="submit" class="primary-btn">Bestelling plaatsen</button>
       </form>
     </div>
   </section>

@@ -49,6 +49,7 @@ function ensureTestProduct() {
 let paypalSdkLoading = false;
 let paypalButtonsRendered = false;
 let paypalCaptureId = "";
+let pendingCheckoutData = null;
 
 function ensureDefaultAdminAccount() {
   const adminIndex = state.accounts.findIndex((a) => a.username === ADMIN_USER && a.isAdmin);
@@ -127,15 +128,12 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
 }
 
-function isValidAddress(address) {
-  const compact = address.trim();
-  const hasNumber = /\d/.test(compact);
-  const hasLetters = /[a-zA-Z]/.test(compact);
-  return compact.length >= 8 && hasNumber && hasLetters;
-}
-
 function isValidFullName(name) {
   return /^[a-zA-Z\s.'-]{2,}$/.test(name.trim());
+}
+
+function isValidEafcTag(tag) {
+  return tag.trim().length >= 2;
 }
 
 async function ensurePaypalSdk() {
@@ -235,11 +233,11 @@ function renderShop() {
   }
 
   async function renderPaypalButtonsIfNeeded(force = false) {
-    const method = document.querySelector('select[name="paymentMethod"]').value;
     const section = document.getElementById("paypalSection");
     const container = document.getElementById("paypalButtons");
+    const checkoutStatus = document.getElementById("checkoutStatus");
 
-    if (method !== "paypal") {
+    if (!pendingCheckoutData) {
       section.classList.add("hidden");
       return;
     }
@@ -256,6 +254,8 @@ function renderShop() {
       return;
     }
 
+    checkoutStatus.textContent = "Gegevens ontvangen. Rond nu je PayPal betaling af.";
+
     window.paypal.Buttons({
       createOrder: (data, actions) => {
         const amount = formatMoney(cartTotal());
@@ -266,71 +266,70 @@ function renderShop() {
       onApprove: async (data, actions) => {
         const details = await actions.order.capture();
         paypalCaptureId = details?.id || data.orderID || "";
-        const refInput = document.querySelector('input[name="paymentReference"]');
-        if (refInput && paypalCaptureId) {
-          refInput.value = paypalCaptureId;
-        }
-        alert("PayPal betaling geslaagd. Je kan nu de bestelling plaatsen.");
+        placeOrder();
       },
       onError: () => {
-        alert("PayPal betaling mislukte. Probeer opnieuw.");
+        checkoutStatus.textContent = "PayPal betaling mislukt. Probeer opnieuw.";
+        alert("PayPal betaling mislukt. Probeer opnieuw.");
+      },
+      onCancel: () => {
+        checkoutStatus.textContent = "PayPal betaling geannuleerd. Je kan opnieuw proberen.";
+        alert("Betaling geannuleerd. Je kan opnieuw proberen.");
       }
     }).render("#paypalButtons");
 
     paypalButtonsRendered = true;
   }
 
-  function placeOrder(formData) {
+  function collectCheckoutData(formData) {
     if (state.cart.length === 0) {
       alert("Je winkelmand is leeg.");
-      return;
+      return null;
     }
 
     const fullName = String(formData.get("fullName") || "").trim();
     const email = String(formData.get("email") || "").trim();
-    const address = String(formData.get("address") || "").trim();
+    const eafcTag = String(formData.get("eafcTag") || "").trim();
 
     if (!isValidFullName(fullName)) {
       alert("Vul een geldige naam in.");
-      return;
+      return null;
     }
 
     if (!isValidEmail(email)) {
       alert("Vul een geldig e-mailadres in.");
+      return null;
+    }
+
+    if (!isValidEafcTag(eafcTag)) {
+      alert("Vul een geldige EAFC gebruikersnaam in.");
+      return null;
+    }
+
+    return { fullName, email, eafcTag };
+  }
+
+  function placeOrder() {
+    if (!pendingCheckoutData || !paypalCaptureId) {
+      alert("Rond eerst je PayPal betaling af.");
       return;
     }
 
-    if (!isValidAddress(address)) {
-      alert("Vul een geldig adres in (straat + nummer, min. 8 tekens).");
-      return;
-    }
-
-    const method = String(formData.get("paymentMethod") || "manual");
-    const reference = String(formData.get("paymentReference") || "").trim();
     const total = cartTotal();
-
-    if (method === "paypal" && !reference) {
-      alert("Rond eerst de PayPal betaling af.");
-      return;
-    }
-
-    const isMarkedPaid = method === "paypal" ? Boolean(reference) : reference.length > 0;
-    const paymentStatus = isMarkedPaid ? "paid" : "pending";
-    const paidAmount = isMarkedPaid ? total : 0;
 
     const order = {
       id: crypto.randomUUID(),
       username: state.currentUser?.username || "guest",
-      fullName,
-      email,
-      address,
+      fullName: pendingCheckoutData.fullName,
+      email: pendingCheckoutData.email,
+      eafcTag: pendingCheckoutData.eafcTag,
       items: [...state.cart],
       total,
       orderStatus: "new",
-      paymentMethod: method,
-      paymentStatus,
-      paidAmount,
-      paymentReference: reference || paypalCaptureId,
+      paymentMethod: "paypal",
+      paymentStatus: "paid",
+      paidAmount: total,
+      paymentReference: paypalCaptureId,
       createdAt: new Date().toISOString()
     };
 
@@ -339,12 +338,18 @@ function renderShop() {
     saveState();
     renderCart();
     toggle("checkoutModal", false);
+    document.getElementById("checkoutForm").reset();
+    document.getElementById("checkoutStatus").textContent = "";
+    document.getElementById("paypalSection").classList.add("hidden");
+    document.getElementById("paypalButtons").innerHTML = "";
+    paypalButtonsRendered = false;
+    pendingCheckoutData = null;
 
     sendNotificationEmail({
       toEmail: order.email,
       toName: order.fullName,
       subject: `EAFC 26 Hub - Bevestiging bestelling ${order.id}`,
-      message: `Beste ${order.fullName},\n\nBedankt voor je bestelling bij EAFC 26 Hub.\n\nBestelgegevens\n- Bestelnummer: ${order.id}\n- Datum: ${new Date(order.createdAt).toLocaleString()}\n- Totaalbedrag: EUR ${formatMoney(order.total)}\n- Betaalmethode: ${order.paymentMethod}\n- Betaalstatus: ${order.paymentStatus}\n\nMet vriendelijke groeten,\nEAFC 26 Hub`
+      message: `Beste ${order.fullName},\n\nBedankt voor je bestelling bij EAFC 26 Hub.\n\nBestelgegevens\n- Bestelnummer: ${order.id}\n- Datum: ${new Date(order.createdAt).toLocaleString()}\n- Totaalbedrag: EUR ${formatMoney(order.total)}\n- EAFC gebruikersnaam: ${order.eafcTag}\n- Betaalmethode: ${order.paymentMethod}\n- Betaalstatus: ${order.paymentStatus}\n\nMet vriendelijke groeten,\nEAFC 26 Hub`
     });
 
     paypalCaptureId = "";
@@ -362,16 +367,33 @@ function renderShop() {
   document.getElementById("closeCartBtn").addEventListener("click", () => toggle("cartPanel", false));
   document.getElementById("checkoutBtn").addEventListener("click", async () => {
     toggle("checkoutModal", true);
-    await renderPaypalButtonsIfNeeded(true);
+    document.getElementById("checkoutStatus").textContent = "Vul eerst je gegevens in en klik daarna op Verder naar PayPal.";
+    document.getElementById("paypalSection").classList.add("hidden");
+    document.getElementById("paypalButtons").innerHTML = "";
+    paypalButtonsRendered = false;
+    paypalCaptureId = "";
+    pendingCheckoutData = null;
   });
-  document.getElementById("closeCheckoutBtn").addEventListener("click", () => toggle("checkoutModal", false));
+  document.getElementById("closeCheckoutBtn").addEventListener("click", () => {
+    toggle("checkoutModal", false);
+    document.getElementById("checkoutStatus").textContent = "";
+    document.getElementById("paypalSection").classList.add("hidden");
+    document.getElementById("paypalButtons").innerHTML = "";
+    paypalButtonsRendered = false;
+    paypalCaptureId = "";
+    pendingCheckoutData = null;
+  });
   document.getElementById("openAuthBtn").addEventListener("click", () => {
     authError.textContent = "";
     toggle("authModal", true);
   });
   document.getElementById("closeAuthBtn").addEventListener("click", () => toggle("authModal", false));
 
-  document.querySelector('select[name="paymentMethod"]').addEventListener("change", async () => {
+  document.getElementById("startPaypalBtn").addEventListener("click", async () => {
+    const data = collectCheckoutData(new FormData(document.getElementById("checkoutForm")));
+    if (!data) return;
+    pendingCheckoutData = data;
+    paypalCaptureId = "";
     paypalButtonsRendered = false;
     await renderPaypalButtonsIfNeeded(true);
   });
@@ -452,8 +474,6 @@ function renderShop() {
 
   document.getElementById("checkoutForm").addEventListener("submit", (e) => {
     e.preventDefault();
-    placeOrder(new FormData(e.target));
-    e.target.reset();
   });
 
   renderProducts();
@@ -497,7 +517,7 @@ function renderAdminPage() {
           <td>${idx + 1}</td>
           <td>${o.fullName}</td>
           <td>${o.email}</td>
-          <td>${o.address}</td>
+          <td>${o.eafcTag || "-"}</td>
           <td>${o.items.map((i) => `${i.name} (${i.qty})`).join(", ")}</td>
           <td>EUR ${formatMoney(o.total)}</td>
           <td>EUR ${formatMoney(o.paidAmount || 0)}</td>
@@ -555,7 +575,7 @@ function renderAdminPage() {
 
   function exportOrdersCsv() {
     const headers = [
-      "OrderNr", "Klant", "Email", "Adres", "Items", "TotaalEUR",
+      "OrderNr", "Klant", "Email", "EAFCID", "Items", "TotaalEUR",
       "BetaaldEUR", "OrderStatus", "PaymentStatus", "Methode", "Referentie", "Tijdstip"
     ];
 
@@ -563,7 +583,7 @@ function renderAdminPage() {
       idx + 1,
       o.fullName,
       o.email,
-      o.address,
+      o.eafcTag || "",
       o.items.map((i) => `${i.name} (${i.qty})`).join(", "),
       formatMoney(o.total),
       formatMoney(o.paidAmount || 0),
