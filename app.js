@@ -10,15 +10,17 @@ const DEFAULT_PRODUCTS = [
 const PAGE = document.body.dataset.page;
 const CLOUD_CONFIG = window.CLOUD_CONFIG || {
   enabled: false,
-  provider: "firebase-firestore",
+  provider: "firebase-rtdb",
   firebaseConfig: {
     apiKey: "",
     authDomain: "",
+    databaseURL: "",
     projectId: "",
     appId: ""
   },
   collection: "shopData",
-  document: "global"
+  document: "global",
+  path: "shopData/global"
 };
 const MAIL_CONFIG = window.MAIL_CONFIG || {
   enabled: false,
@@ -61,6 +63,7 @@ const cloudState = {
   enabled: false,
   initPromise: null,
   docRef: null,
+  dataRef: null,
   unsubscribe: null,
   applyingSnapshot: false
 };
@@ -143,11 +146,18 @@ function normalizeCheckoutConfig(input) {
 }
 
 function cloudAvailable() {
+  if (!CLOUD_CONFIG.enabled || !window.firebase) return false;
+
+  if (CLOUD_CONFIG.provider === "firebase-firestore") {
+    return Boolean(window.firebase.firestore);
+  }
+
+  if (CLOUD_CONFIG.provider === "firebase-rtdb") {
+    return Boolean(window.firebase.database);
+  }
+
   return Boolean(
     CLOUD_CONFIG.enabled
-    && CLOUD_CONFIG.provider === "firebase-firestore"
-    && window.firebase
-    && window.firebase.firestore
   );
 }
 
@@ -162,10 +172,18 @@ async function initCloud() {
       ? window.firebase.app()
       : window.firebase.initializeApp(CLOUD_CONFIG.firebaseConfig);
 
-    const db = window.firebase.firestore(app);
-    cloudState.docRef = db
-      .collection(CLOUD_CONFIG.collection || "shopData")
-      .doc(CLOUD_CONFIG.document || "global");
+    if (CLOUD_CONFIG.provider === "firebase-firestore") {
+      const db = window.firebase.firestore(app);
+      cloudState.docRef = db
+        .collection(CLOUD_CONFIG.collection || "shopData")
+        .doc(CLOUD_CONFIG.document || "global");
+    }
+
+    if (CLOUD_CONFIG.provider === "firebase-rtdb") {
+      const db = window.firebase.database(app);
+      cloudState.dataRef = db.ref(CLOUD_CONFIG.path || "shopData/global");
+    }
+
     cloudState.enabled = true;
     return true;
   })();
@@ -183,12 +201,21 @@ function applyCloudPayload(payload) {
 
 async function loadStateFromCloudOnce() {
   const ready = await initCloud();
-  if (!ready || !cloudState.docRef) return;
+  if (!ready) return;
 
   try {
-    const snap = await cloudState.docRef.get();
-    if (!snap.exists) return;
-    const payload = snap.data()?.state;
+    let payload = null;
+
+    if (CLOUD_CONFIG.provider === "firebase-firestore" && cloudState.docRef) {
+      const snap = await cloudState.docRef.get();
+      if (snap.exists) payload = snap.data()?.state;
+    }
+
+    if (CLOUD_CONFIG.provider === "firebase-rtdb" && cloudState.dataRef) {
+      const snap = await cloudState.dataRef.get();
+      payload = snap.exists() ? snap.val()?.state : null;
+    }
+
     if (!payload) return;
 
     applyCloudPayload(payload);
@@ -200,18 +227,26 @@ async function loadStateFromCloudOnce() {
 
 async function saveStateToCloud() {
   const ready = await initCloud();
-  if (!ready || !cloudState.docRef || cloudState.applyingSnapshot) return;
+  if (!ready || cloudState.applyingSnapshot) return;
+
+  const payload = {
+    state: {
+      orders: state.orders,
+      accounts: state.accounts,
+      products: state.products,
+      checkoutConfig: state.checkoutConfig,
+      updatedAt: new Date().toISOString()
+    }
+  };
 
   try {
-    await cloudState.docRef.set({
-      state: {
-        orders: state.orders,
-        accounts: state.accounts,
-        products: state.products,
-        checkoutConfig: state.checkoutConfig,
-        updatedAt: new Date().toISOString()
-      }
-    }, { merge: true });
+    if (CLOUD_CONFIG.provider === "firebase-firestore" && cloudState.docRef) {
+      await cloudState.docRef.set(payload, { merge: true });
+    }
+
+    if (CLOUD_CONFIG.provider === "firebase-rtdb" && cloudState.dataRef) {
+      await cloudState.dataRef.set(payload);
+    }
   } catch (error) {
     console.error("Cloud save failed:", error);
   }
@@ -219,17 +254,33 @@ async function saveStateToCloud() {
 
 async function startCloudRealtimeSync() {
   const ready = await initCloud();
-  if (!ready || !cloudState.docRef || cloudState.unsubscribe) return;
+  if (!ready || cloudState.unsubscribe) return;
 
-  cloudState.unsubscribe = cloudState.docRef.onSnapshot((snap) => {
-    const payload = snap.data()?.state;
-    if (!payload) return;
-    cloudState.applyingSnapshot = true;
-    applyCloudPayload(payload);
-    saveStateLocal();
-    rerenderCurrentPage();
-    cloudState.applyingSnapshot = false;
-  });
+  if (CLOUD_CONFIG.provider === "firebase-firestore" && cloudState.docRef) {
+    cloudState.unsubscribe = cloudState.docRef.onSnapshot((snap) => {
+      const payload = snap.data()?.state;
+      if (!payload) return;
+      cloudState.applyingSnapshot = true;
+      applyCloudPayload(payload);
+      saveStateLocal();
+      rerenderCurrentPage();
+      cloudState.applyingSnapshot = false;
+    });
+  }
+
+  if (CLOUD_CONFIG.provider === "firebase-rtdb" && cloudState.dataRef) {
+    const handler = (snap) => {
+      const payload = snap.val()?.state;
+      if (!payload) return;
+      cloudState.applyingSnapshot = true;
+      applyCloudPayload(payload);
+      saveStateLocal();
+      rerenderCurrentPage();
+      cloudState.applyingSnapshot = false;
+    };
+    cloudState.dataRef.on("value", handler);
+    cloudState.unsubscribe = () => cloudState.dataRef.off("value", handler);
+  }
 }
 
 state.checkoutConfig = normalizeCheckoutConfig(JSON.parse(localStorage.getItem("checkoutConfig") || "null"));
