@@ -271,7 +271,6 @@ function renderShop() {
       .join("");
 
     checkoutFieldsContainer.innerHTML = state.checkoutConfig.fields.map((field) => {
-      const safeLabel = escapeHtml(field.label);
       const safePlaceholder = escapeHtml(field.placeholder || "");
       if (field.type === "textarea") {
         return `
@@ -687,7 +686,7 @@ function renderAdminPage() {
       }
 
       if (updatedFields.some((field) => !validateCheckoutFieldSafety(field))) {
-        alert("Gevoelige velden zoals wachtwoorden, backup codes of login-data zijn niet toegestaan.");
+        alert("Een of meer checkout velden worden niet ondersteund. Kies een gewone label/placeholder.");
         return;
       }
 
