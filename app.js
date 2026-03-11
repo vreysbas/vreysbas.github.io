@@ -45,7 +45,7 @@ const state = {
   currentUser: JSON.parse(sessionStorage.getItem("currentUser") || "null")
 };
 
-const SENSITIVE_FIELD_PATTERN = /(password|wachtwoord|backup|2fa|authenticator|recovery|secret|login|inlog)/i;
+const SENSITIVE_FIELD_PATTERN = /\b(password|wachtwoord|backup\s*codes?|2fa|authenticator|recovery\s*codes?)\b/i;
 
 function cloneCheckoutField(field) {
   return {
@@ -661,7 +661,7 @@ function renderAdminPage() {
     }
 
     function validateCheckoutFieldSafety(field) {
-      return !SENSITIVE_FIELD_PATTERN.test(`${field.label} ${field.placeholder || ""}`);
+      return !SENSITIVE_FIELD_PATTERN.test(field.label);
     }
 
     function saveCheckoutConfigFromEditor() {
