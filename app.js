@@ -311,6 +311,7 @@ function renderShop() {
       .join("");
 
     checkoutFieldsContainer.innerHTML = state.checkoutConfig.fields.map((field) => {
+      const safeLabel = escapeHtml(field.label || "Veld");
       const safePlaceholder = escapeHtml(field.placeholder || "");
       if (field.type === "textarea") {
         return `
