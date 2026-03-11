@@ -295,6 +295,9 @@ function renderShop() {
   const orderActionConfirmTitle = document.getElementById("orderActionConfirmTitle");
   const orderActionConfirmMessage = document.getElementById("orderActionConfirmMessage");
   const confirmOrderActionBtn = document.getElementById("confirmOrderActionBtn");
+  const cancelOrderActionBtn = document.getElementById("cancelOrderActionBtn");
+  const checkoutPaidBtn = document.getElementById("checkoutPaidBtn");
+  const checkoutCancelBtn = document.getElementById("checkoutCancelBtn");
   const checkoutFieldsContainer = document.getElementById("checkoutFieldsContainer");
   const storePaymentNote = document.getElementById("storePaymentNote");
   const refundWarningText = document.getElementById("refundWarningText");
@@ -306,6 +309,7 @@ function renderShop() {
   const logoutBtn = document.getElementById("logoutBtn");
   const authError = document.getElementById("authError");
   let pendingOrderAction = null;
+  let latestCheckoutOrderId = null;
 
   function updateAuthUi() {
     const loggedIn = Boolean(state.currentUser);
@@ -405,11 +409,8 @@ function renderShop() {
           <span><strong>Totaal:</strong> EUR ${formatMoney(order.total)}</span>
           <span><strong>EAFC ID:</strong> ${order.eafcTag || "-"}</span>
           <span><strong>Items:</strong> ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}</span>
-             <span><strong>Uitleg:</strong> ${order.paymentStatus === "paid" ? "Betaling ontvangen, check de orderstatus voor de voortgang." : `Betaal handmatig naar ${state.checkoutConfig.paypalEmail} met dit order-ID in de beschrijving.`}</span>
-        </div>
-        <div class="order-actions">
-          <button class="primary-btn" data-order-action="paid" data-order-id="${order.id}">I paid</button>
-          <button class="ghost-btn danger-btn" data-order-action="cancelled" data-order-id="${order.id}">I cancelled</button>
+          <span><strong>Uitleg:</strong> ${order.paymentStatus === "paid" ? "Betaling ontvangen, check de orderstatus voor de voortgang." : `Betaal handmatig naar ${state.checkoutConfig.paypalEmail} met dit order-ID in de beschrijving.`}</span>
+          ${order.adminNote ? `<span><strong>Admin notitie:</strong> ${escapeHtml(order.adminNote)}</span>` : ""}
         </div>
       </article>
     `).join("");
@@ -417,14 +418,11 @@ function renderShop() {
 
   function openOrderActionConfirm(action, orderId) {
     pendingOrderAction = { action, orderId };
-    if (action === "paid") {
-      orderActionConfirmTitle.textContent = "Bevestig betaling";
-      orderActionConfirmMessage.textContent = `Ben je zeker dat je order ${orderId} hebt betaald?`;
-      confirmOrderActionBtn.textContent = "Ja, ik heb betaald";
-    } else {
+    if (action === "cancelled") {
       orderActionConfirmTitle.textContent = "Bevestig annulering";
-      orderActionConfirmMessage.textContent = `Ben je zeker dat je order ${orderId} wil annuleren?`;
-      confirmOrderActionBtn.textContent = "Ja, annuleer order";
+      orderActionConfirmMessage.textContent = `Wil je order ${orderId} afbreken of verderzetten?`;
+      confirmOrderActionBtn.textContent = "Order afbreken";
+      cancelOrderActionBtn.textContent = "Verderzetten";
     }
     toggle("orderActionConfirmModal", true);
   }
@@ -439,22 +437,44 @@ function renderShop() {
       return;
     }
 
-    if (action === "paid") {
-      order.orderStatus = order.orderStatus === "awaiting_payment" ? "payment_review" : order.orderStatus;
-      order.paymentStatus = order.paymentStatus === "paid" ? "paid" : "payment_review";
-      order.paymentReference = `${order.paymentReference || ""} | klant: I paid @ ${new Date().toLocaleString()}`.trim();
-    }
-
     if (action === "cancelled") {
       order.orderStatus = "cancelled";
       order.paymentStatus = order.paymentStatus === "paid" ? "paid" : "cancelled";
       order.paymentReference = `${order.paymentReference || ""} | klant: I cancelled @ ${new Date().toLocaleString()}`.trim();
+      toggle("checkoutModal", false);
+      toggle("ordersPanel", true);
     }
 
     saveState();
     renderCustomerOrders();
+    cancelOrderActionBtn.textContent = "Annuleren";
     toggle("orderActionConfirmModal", false);
     pendingOrderAction = null;
+  }
+
+  function markLatestOrderAsPaidByCustomer() {
+    if (!latestCheckoutOrderId) {
+      alert("Maak eerst een order aan voor je op I paid drukt.");
+      return;
+    }
+
+    const order = state.orders.find((x) => x.id === latestCheckoutOrderId);
+    if (!order) {
+      alert("Order niet gevonden.");
+      return;
+    }
+
+    order.orderStatus = order.orderStatus === "awaiting_payment" ? "payment_review" : order.orderStatus;
+    if (order.paymentStatus !== "paid") {
+      order.paymentStatus = "payment_review";
+    }
+    order.paymentReference = `${order.paymentReference || ""} | klant: I paid @ ${new Date().toLocaleString()}`.trim();
+    saveState();
+
+    toggle("checkoutModal", false);
+    renderCustomerOrders();
+    toggle("ordersPanel", true);
+    alert("Betaling gemeld. Je order staat nu op payment_review.");
   }
 
   function addToCart(productId) {
@@ -553,6 +573,7 @@ function renderShop() {
     };
 
     state.orders.unshift(order);
+    latestCheckoutOrderId = order.id;
     storeCustomerOrderId(order.id);
     state.cart = [];
     saveState();
@@ -582,17 +603,12 @@ function renderShop() {
     const add = e.target.getAttribute("data-add");
     const remove = e.target.getAttribute("data-remove");
     const toggleMaskId = e.target.getAttribute("data-toggle-mask");
-    const orderAction = e.target.getAttribute("data-order-action");
-    const orderActionOrderId = e.target.getAttribute("data-order-id");
     if (add) addToCart(add);
     if (remove) removeFromCart(remove);
     if (toggleMaskId) {
       const input = document.getElementById(toggleMaskId);
       if (!input) return;
       input.type = input.type === "password" ? "text" : "password";
-    }
-    if (orderAction && orderActionOrderId) {
-      openOrderActionConfirm(orderAction, orderActionOrderId);
     }
   });
 
@@ -603,12 +619,22 @@ function renderShop() {
     toggle("ordersPanel", true);
   });
   document.getElementById("closeOrdersBtn").addEventListener("click", () => toggle("ordersPanel", false));
+  checkoutPaidBtn.addEventListener("click", markLatestOrderAsPaidByCustomer);
+  checkoutCancelBtn.addEventListener("click", () => {
+    if (!latestCheckoutOrderId) {
+      alert("Maak eerst een order aan voor je op Cancel drukt.");
+      return;
+    }
+    openOrderActionConfirm("cancelled", latestCheckoutOrderId);
+  });
   document.getElementById("closeOrderActionConfirmBtn").addEventListener("click", () => {
     pendingOrderAction = null;
+    cancelOrderActionBtn.textContent = "Annuleren";
     toggle("orderActionConfirmModal", false);
   });
   document.getElementById("cancelOrderActionBtn").addEventListener("click", () => {
     pendingOrderAction = null;
+    cancelOrderActionBtn.textContent = "Annuleren";
     toggle("orderActionConfirmModal", false);
   });
   confirmOrderActionBtn.addEventListener("click", applyOrderAction);
@@ -919,7 +945,7 @@ function renderAdminPage() {
     kpiPendingPayments.textContent = pendingPayments;
 
     if (visibleOrders.length === 0) {
-      orderTableBody.innerHTML = "<tr><td colspan='14'>Geen bestellingen voor deze filter.</td></tr>";
+      orderTableBody.innerHTML = "<tr><td colspan='15'>Geen bestellingen voor deze filter.</td></tr>";
     } else {
       orderTableBody.innerHTML = visibleOrders.map((o, idx) => `
         <tr>
@@ -938,6 +964,9 @@ function renderAdminPage() {
           <td><span class="status-badge ${o.paymentStatus === "paid" ? "paid" : "pending"}">${o.paymentStatus}</span></td>
           <td>${o.paymentMethod || "-"}</td>
           <td>${o.paymentReference || "-"}</td>
+          <td>
+            <textarea rows="3" data-order-note="${o.id}" placeholder="Interne notitie voor dit order...">${escapeHtml(o.adminNote || "")}</textarea>
+          </td>
           <td>${new Date(o.createdAt).toLocaleString()}</td>
           <td>
             <div class="admin-actions">
@@ -1153,10 +1182,16 @@ function renderAdminPage() {
 
     if (saveOrderId) {
       const selectEl = document.querySelector(`select[data-order-status="${saveOrderId}"]`);
+      const noteEl = document.querySelector(`textarea[data-order-note="${saveOrderId}"]`);
       if (!selectEl) return;
       const order = state.orders.find((o) => o.id === saveOrderId);
       if (!order) return;
       order.orderStatus = selectEl.value;
+      order.adminNote = String(noteEl?.value || "").trim();
+      if (order.orderStatus === "paid") {
+        order.paymentStatus = "paid";
+        order.paidAmount = Number(order.total || 0);
+      }
       saveState();
       renderAdminData();
       return;
@@ -1174,11 +1209,11 @@ function renderAdminPage() {
     if (markPaidId) {
       const order = state.orders.find((o) => o.id === markPaidId);
       if (!order) return;
+      const noteEl = document.querySelector(`textarea[data-order-note="${markPaidId}"]`);
       order.paymentStatus = "paid";
       order.paidAmount = Number(order.total || 0);
-      if (order.orderStatus === "awaiting_payment") {
-        order.orderStatus = "payment_review";
-      }
+      order.orderStatus = "paid";
+      order.adminNote = String(noteEl?.value || order.adminNote || "").trim();
       saveState();
       renderAdminData();
       return;
