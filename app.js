@@ -585,7 +585,6 @@ function renderShop() {
   };
 
   window.addEventListener("storage", rerenderShop);
-  window.setInterval(rerenderShop, 4000);
 }
 
 function renderAdminPage() {
@@ -1042,7 +1041,6 @@ function renderAdminPage() {
   };
 
   window.addEventListener("storage", rerenderAdmin);
-  window.setInterval(rerenderAdmin, 4000);
 }
 
 ensureDefaultAdminAccount();
