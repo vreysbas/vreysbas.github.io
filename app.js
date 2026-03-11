@@ -224,7 +224,7 @@ function renderShop() {
           <span class="status-badge ${order.paymentStatus === "paid" ? "paid" : "pending"}">${order.paymentStatus}</span>
         </div>
         <div class="order-meta">
-          <span><strongOrderstatus:</strong> ${order.orderStatus}</span>
+          <span><strong>Orderstatus:</strong> ${order.orderStatus}</span>
           <span><strong>Totaal:</strong> EUR ${formatMoney(order.total)}</span>
           <span><strong>EAFC ID:</strong> ${order.eafcTag || "-"}</span>
           <span><strong>Items:</strong> ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}</span>
@@ -247,7 +247,7 @@ function renderShop() {
   function removeFromCart(productId) {
     state.cart = state.cart.filter((x) => x.id !== Number(productId));
     saveState();
-    2renderCart();
+    renderCart();
   }
 
   function toggle(id, show) {
@@ -261,8 +261,8 @@ function renderShop() {
       return null;
     }
 
-    const fullName = String(formData.get("EAFC 26 email") || "").trim();
-    const email = String(formData.get("EAFC") || "").trim();
+    const fullName = String(formData.get("fullName") || "").trim();
+    const email = String(formData.get("email") || "").trim();
     const eafcTag = String(formData.get("eafcTag") || "").trim();
     const noRefundAck = formData.get("noRefundAck") === "on";
 
