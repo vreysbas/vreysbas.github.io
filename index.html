@@ -26,7 +26,7 @@
       <h1>EAFC 26 Storefront</h1>
       <p>Shop jouw upgrades, packs en guides. Jij beheert de producten zelf in de admin tab.</p>
       <p id="userWelcome" class="welcome-line">Niet ingelogd</p>
-      <p class="note">Real payment werkt via PayPal Checkout. Voeg je PayPal Client ID toe in payment-config.js om live betalingen te activeren.</p>
+      <p class="note">Betalen gebeurt manueel via PayPal naar congaxd@gmail.com met je order-ID in de beschrijving. Zo kunnen we betalingen correct koppelen.</p>
     </section>
 
     <section>
@@ -63,11 +63,17 @@
         <label>EAFC gebruikersnaam
           <input name="eafcTag" required placeholder="bv. VreysBas">
         </label>
-        <button type="button" id="startPaypalBtn" class="primary-btn">Verder naar PayPal</button>
+        <button type="submit" class="primary-btn">Order aanmaken</button>
         <p id="checkoutStatus" class="small-line"></p>
-        <div id="paypalSection" class="paypal-section hidden">
-          <p class="small-line">Bevestig hieronder je PayPal betaling. Bij een fout kan je meteen opnieuw proberen.</p>
-          <div id="paypalButtons"></div>
+        <div id="manualPaymentInstructions" class="paypal-section hidden">
+          <p class="small-line">Volg exact deze stappen om problemen te vermijden:</p>
+          <ol class="instruction-list">
+            <li>Open PayPal en kies geld verzenden.</li>
+            <li>Stuur exact het orderbedrag naar <strong>congaxd@gmail.com</strong>.</li>
+            <li>Zet je order-ID in de beschrijving.</li>
+            <li>Na betaling controleren wij handmatig en zetten we je order op betaald.</li>
+          </ol>
+          <p id="manualPaymentSummary" class="small-line"></p>
         </div>
       </form>
     </div>
@@ -113,7 +119,6 @@
   </section>
 
   <script src="email-config.js"></script>
-  <script src="payment-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

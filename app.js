@@ -8,6 +8,7 @@ const DEFAULT_PRODUCTS = [
 ];
 
 const PAGE = document.body.dataset.page;
+const PAYPAL_TRANSFER_EMAIL = "congaxd@gmail.com";
 const MAIL_CONFIG = window.MAIL_CONFIG || {
   enabled: false,
   provider: "web3forms",
@@ -16,11 +17,6 @@ const MAIL_CONFIG = window.MAIL_CONFIG || {
   fromName: "EAFC 26 Hub",
   fromEmail: "no-reply@example.com",
   replyTo: ""
-};
-const PAYMENT_CONFIG = window.PAYMENT_CONFIG || {
-  provider: "paypal",
-  paypalClientId: "",
-  currency: "EUR"
 };
 
 const state = {
@@ -45,11 +41,6 @@ function ensureTestProduct() {
     price: 0.01
   });
 }
-
-let paypalSdkLoading = false;
-let paypalButtonsRendered = false;
-let paypalCaptureId = "";
-let pendingCheckoutData = null;
 
 function ensureDefaultAdminAccount() {
   const adminIndex = state.accounts.findIndex((a) => a.username === ADMIN_USER && a.isAdmin);
@@ -136,29 +127,6 @@ function isValidEafcTag(tag) {
   return tag.trim().length >= 2;
 }
 
-async function ensurePaypalSdk() {
-  if (window.paypal) return true;
-  if (!PAYMENT_CONFIG.paypalClientId) return false;
-  if (paypalSdkLoading) {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    return Boolean(window.paypal);
-  }
-
-  paypalSdkLoading = true;
-  const script = document.createElement("script");
-  script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(PAYMENT_CONFIG.paypalClientId)}&currency=${encodeURIComponent(PAYMENT_CONFIG.currency || "EUR")}`;
-  script.async = true;
-
-  const loaded = await new Promise((resolve) => {
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.head.appendChild(script);
-  });
-
-  paypalSdkLoading = false;
-  return loaded && Boolean(window.paypal);
-}
-
 function renderShop() {
   const productGrid = document.getElementById("productGrid");
   const cartCount = document.getElementById("cartCount");
@@ -232,55 +200,6 @@ function renderShop() {
     node.classList.toggle("hidden", !show);
   }
 
-  async function renderPaypalButtonsIfNeeded(force = false) {
-    const section = document.getElementById("paypalSection");
-    const container = document.getElementById("paypalButtons");
-    const checkoutStatus = document.getElementById("checkoutStatus");
-
-    if (!pendingCheckoutData) {
-      section.classList.add("hidden");
-      return;
-    }
-
-    section.classList.remove("hidden");
-
-    if (!force && paypalButtonsRendered) return;
-    container.innerHTML = "";
-
-    const sdkReady = await ensurePaypalSdk();
-    if (!sdkReady) {
-      container.innerHTML = "<p class='small-line'>PayPal is nog niet geconfigureerd. Voeg een client ID toe in payment-config.js.</p>";
-      paypalButtonsRendered = false;
-      return;
-    }
-
-    checkoutStatus.textContent = "Gegevens ontvangen. Rond nu je PayPal betaling af.";
-
-    window.paypal.Buttons({
-      createOrder: (data, actions) => {
-        const amount = formatMoney(cartTotal());
-        return actions.order.create({
-          purchase_units: [{ amount: { value: amount } }]
-        });
-      },
-      onApprove: async (data, actions) => {
-        const details = await actions.order.capture();
-        paypalCaptureId = details?.id || data.orderID || "";
-        placeOrder();
-      },
-      onError: () => {
-        checkoutStatus.textContent = "PayPal betaling mislukt. Probeer opnieuw.";
-        alert("PayPal betaling mislukt. Probeer opnieuw.");
-      },
-      onCancel: () => {
-        checkoutStatus.textContent = "PayPal betaling geannuleerd. Je kan opnieuw proberen.";
-        alert("Betaling geannuleerd. Je kan opnieuw proberen.");
-      }
-    }).render("#paypalButtons");
-
-    paypalButtonsRendered = true;
-  }
-
   function collectCheckoutData(formData) {
     if (state.cart.length === 0) {
       alert("Je winkelmand is leeg.");
@@ -309,27 +228,29 @@ function renderShop() {
     return { fullName, email, eafcTag };
   }
 
-  function placeOrder() {
-    if (!pendingCheckoutData || !paypalCaptureId) {
-      alert("Rond eerst je PayPal betaling af.");
-      return;
-    }
+  function placeOrder(formData) {
+    const checkoutData = collectCheckoutData(formData);
+    if (!checkoutData) return;
 
+    const checkoutStatus = document.getElementById("checkoutStatus");
+    const instructions = document.getElementById("manualPaymentInstructions");
+    const summary = document.getElementById("manualPaymentSummary");
     const total = cartTotal();
+    const orderId = crypto.randomUUID();
 
     const order = {
-      id: crypto.randomUUID(),
+      id: orderId,
       username: state.currentUser?.username || "guest",
-      fullName: pendingCheckoutData.fullName,
-      email: pendingCheckoutData.email,
-      eafcTag: pendingCheckoutData.eafcTag,
+      fullName: checkoutData.fullName,
+      email: checkoutData.email,
+      eafcTag: checkoutData.eafcTag,
       items: [...state.cart],
       total,
       orderStatus: "new",
-      paymentMethod: "paypal",
-      paymentStatus: "paid",
-      paidAmount: total,
-      paymentReference: paypalCaptureId,
+      paymentMethod: "paypal-manual-transfer",
+      paymentStatus: "pending",
+      paidAmount: 0,
+      paymentReference: `Gebruik order-ID ${orderId} in PayPal beschrijving`,
       createdAt: new Date().toISOString()
     };
 
@@ -337,23 +258,23 @@ function renderShop() {
     state.cart = [];
     saveState();
     renderCart();
-    toggle("checkoutModal", false);
-    document.getElementById("checkoutForm").reset();
-    document.getElementById("checkoutStatus").textContent = "";
-    document.getElementById("paypalSection").classList.add("hidden");
-    document.getElementById("paypalButtons").innerHTML = "";
-    paypalButtonsRendered = false;
-    pendingCheckoutData = null;
+    instructions.classList.remove("hidden");
+    checkoutStatus.textContent = "Order aangemaakt. Betaal nu exact volgens onderstaande stappen.";
+    summary.innerHTML = `
+      <strong>Te betalen:</strong> EUR ${formatMoney(order.total)}<br>
+      <strong>PayPal account:</strong> ${PAYPAL_TRANSFER_EMAIL}<br>
+      <strong>Order-ID voor beschrijving:</strong> ${order.id}<br>
+      <strong>Belangrijk:</strong> Zonder dit order-ID in de beschrijving kunnen we je betaling niet koppelen.
+    `;
 
     sendNotificationEmail({
       toEmail: order.email,
       toName: order.fullName,
       subject: `EAFC 26 Hub - Bevestiging bestelling ${order.id}`,
-      message: `Beste ${order.fullName},\n\nBedankt voor je bestelling bij EAFC 26 Hub.\n\nBestelgegevens\n- Bestelnummer: ${order.id}\n- Datum: ${new Date(order.createdAt).toLocaleString()}\n- Totaalbedrag: EUR ${formatMoney(order.total)}\n- EAFC gebruikersnaam: ${order.eafcTag}\n- Betaalmethode: ${order.paymentMethod}\n- Betaalstatus: ${order.paymentStatus}\n\nMet vriendelijke groeten,\nEAFC 26 Hub`
+      message: `Beste ${order.fullName},\n\nBedankt voor je bestelling bij EAFC 26 Hub.\n\nBestelgegevens\n- Bestelnummer: ${order.id}\n- Datum: ${new Date(order.createdAt).toLocaleString()}\n- Totaalbedrag: EUR ${formatMoney(order.total)}\n- EAFC gebruikersnaam: ${order.eafcTag}\n- Betaalmethode: Manuele PayPal overschrijving\n\nBetaal nu naar: ${PAYPAL_TRANSFER_EMAIL}\nVermeld verplicht dit order-ID in de beschrijving: ${order.id}\n\nNa controle zetten we je order op betaald.\n\nMet vriendelijke groeten,\nEAFC 26 Hub`
     });
 
-    paypalCaptureId = "";
-    alert("Bestelling geplaatst!");
+    alert("Order aangemaakt. Volg nu de betaalinstructies in het checkoutvenster.");
   }
 
   document.addEventListener("click", (e) => {
@@ -365,38 +286,24 @@ function renderShop() {
 
   document.getElementById("openCartBtn").addEventListener("click", () => toggle("cartPanel", true));
   document.getElementById("closeCartBtn").addEventListener("click", () => toggle("cartPanel", false));
-  document.getElementById("checkoutBtn").addEventListener("click", async () => {
+  document.getElementById("checkoutBtn").addEventListener("click", () => {
     toggle("checkoutModal", true);
-    document.getElementById("checkoutStatus").textContent = "Vul eerst je gegevens in en klik daarna op Verder naar PayPal.";
-    document.getElementById("paypalSection").classList.add("hidden");
-    document.getElementById("paypalButtons").innerHTML = "";
-    paypalButtonsRendered = false;
-    paypalCaptureId = "";
-    pendingCheckoutData = null;
+    document.getElementById("checkoutStatus").textContent = "Maak eerst je order aan. Daarna zie je exact waar je moet betalen.";
+    document.getElementById("manualPaymentInstructions").classList.add("hidden");
+    document.getElementById("manualPaymentSummary").textContent = "";
   });
   document.getElementById("closeCheckoutBtn").addEventListener("click", () => {
     toggle("checkoutModal", false);
+    document.getElementById("checkoutForm").reset();
     document.getElementById("checkoutStatus").textContent = "";
-    document.getElementById("paypalSection").classList.add("hidden");
-    document.getElementById("paypalButtons").innerHTML = "";
-    paypalButtonsRendered = false;
-    paypalCaptureId = "";
-    pendingCheckoutData = null;
+    document.getElementById("manualPaymentInstructions").classList.add("hidden");
+    document.getElementById("manualPaymentSummary").textContent = "";
   });
   document.getElementById("openAuthBtn").addEventListener("click", () => {
     authError.textContent = "";
     toggle("authModal", true);
   });
   document.getElementById("closeAuthBtn").addEventListener("click", () => toggle("authModal", false));
-
-  document.getElementById("startPaypalBtn").addEventListener("click", async () => {
-    const data = collectCheckoutData(new FormData(document.getElementById("checkoutForm")));
-    if (!data) return;
-    pendingCheckoutData = data;
-    paypalCaptureId = "";
-    paypalButtonsRendered = false;
-    await renderPaypalButtonsIfNeeded(true);
-  });
 
   document.getElementById("showLoginTabBtn").addEventListener("click", () => {
     document.getElementById("loginForm").classList.remove("hidden");
@@ -474,6 +381,7 @@ function renderShop() {
 
   document.getElementById("checkoutForm").addEventListener("submit", (e) => {
     e.preventDefault();
+    placeOrder(new FormData(e.target));
   });
 
   renderProducts();
