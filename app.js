@@ -46,6 +46,44 @@ const state = {
 };
 
 const SENSITIVE_FIELD_PATTERN = /\b(password|wachtwoord|backup\s*codes?|2fa|authenticator|recovery\s*codes?)\b/i;
+const ALLOWED_FIELD_TYPES = new Set(["text", "email", "textarea"]);
+const CORE_FIELD_IDS = new Set(["fullName", "email", "eafcTag"]);
+
+function getDefaultFieldById(fieldId) {
+  return DEFAULT_CHECKOUT_CONFIG.fields.find((field) => field.id === fieldId);
+}
+
+function normalizeCheckoutFields(rawFields) {
+  const baseFields = Array.isArray(rawFields) ? rawFields : [];
+  const normalized = baseFields
+    .map(cloneCheckoutField)
+    .filter((field) => Boolean(field.id) && Boolean(field.label))
+    .map((field) => ({
+      ...field,
+      type: ALLOWED_FIELD_TYPES.has(field.type) ? field.type : "text"
+    }));
+
+  // Always guarantee the three core checkout fields are present.
+  for (const coreId of CORE_FIELD_IDS) {
+    if (!normalized.some((field) => field.id === coreId)) {
+      const defaultField = getDefaultFieldById(coreId);
+      if (defaultField) {
+        normalized.unshift(cloneCheckoutField(defaultField));
+      }
+    }
+  }
+
+  return normalized.map((field) => {
+    if (!CORE_FIELD_IDS.has(field.id)) return field;
+    const defaultField = getDefaultFieldById(field.id);
+    return {
+      ...field,
+      type: defaultField?.type || field.type,
+      required: true,
+      locked: true
+    };
+  });
+}
 
 function cloneCheckoutField(field) {
   return {
@@ -60,9 +98,11 @@ function cloneCheckoutField(field) {
 
 function normalizeCheckoutConfig(input) {
   const source = input || {};
-  const fields = Array.isArray(source.fields) && source.fields.length > 0
-    ? source.fields.map(cloneCheckoutField)
-    : DEFAULT_CHECKOUT_CONFIG.fields.map(cloneCheckoutField);
+  const fields = normalizeCheckoutFields(
+    Array.isArray(source.fields) && source.fields.length > 0
+      ? source.fields
+      : DEFAULT_CHECKOUT_CONFIG.fields
+  );
 
   return {
     paymentNote: String(source.paymentNote || DEFAULT_CHECKOUT_CONFIG.paymentNote),
