@@ -301,7 +301,7 @@ function renderShop() {
     }
 
     if (!isValidAddress(address)) {
-      alert("Vul een geldig adres in (straat + nummer, min. 8 tekens).\");
+      alert("Vul een geldig adres in (straat + nummer, min. 8 tekens).");
       return;
     }
 
