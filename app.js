@@ -30,9 +30,10 @@ const DEFAULT_CHECKOUT_CONFIG = {
     "Na betaling controleren wij handmatig en zetten we je order op betaald."
   ],
   fields: [
-    { id: "fullName", label: "Volledige naam", type: "text", placeholder: "", required: true, locked: true },
-    { id: "email", label: "E-mail", type: "email", placeholder: "", required: true, locked: true },
-    { id: "eafcTag", label: "EAFC gebruikersnaam", type: "text", placeholder: "bv. VreysBas", required: true, locked: true }
+    { id: "fullName", label: "EAFC E-mail", type: "email", placeholder: "naam@email.com", required: true, locked: true },
+    { id: "email", label: "EAFC ID", type: "text", placeholder: "Jouw EAFC ID", required: true, locked: true },
+    { id: "eafcTag", label: "Extra veld 1", type: "text", placeholder: "1.", required: true, locked: true },
+    { id: "extraInfo2", label: "Extra veld 2", type: "text", placeholder: "2.", required: true, locked: true }
   ]
 };
 
@@ -47,7 +48,7 @@ const state = {
 
 const SENSITIVE_FIELD_PATTERN = /\b(password|wachtwoord|backup\s*codes?|2fa|authenticator|recovery\s*codes?)\b/i;
 const ALLOWED_FIELD_TYPES = new Set(["text", "email", "textarea"]);
-const CORE_FIELD_IDS = new Set(["fullName", "email", "eafcTag"]);
+const CORE_FIELD_IDS = new Set(["fullName", "email", "eafcTag", "extraInfo2"]);
 
 function getDefaultFieldById(fieldId) {
   return DEFAULT_CHECKOUT_CONFIG.fields.find((field) => field.id === fieldId);
@@ -407,23 +408,24 @@ function renderShop() {
       return null;
     }
 
-    const fullName = String(formData.get("fullName") || "").trim();
-    const email = String(formData.get("email") || "").trim();
-    const eafcTag = String(formData.get("eafcTag") || "").trim();
+    const primaryEmail = String(formData.get("fullName") || "").trim();
+    const eafcId = String(formData.get("email") || "").trim();
+    const extraField1 = String(formData.get("eafcTag") || "").trim();
+    const extraField2 = String(formData.get("extraInfo2") || "").trim();
     const noRefundAck = formData.get("noRefundAck") === "on";
 
-    if (!isValidFullName(fullName)) {
-      alert("Vul een geldige naam in.");
+    if (!isValidEmail(primaryEmail)) {
+      alert("Vul een geldig e-mailadres in bij EAFC E-mail.");
       return null;
     }
 
-    if (!isValidEmail(email)) {
-      alert("Vul een geldig e-mailadres in.");
+    if (eafcId.length < 2) {
+      alert("Vul een geldige waarde in bij EAFC ID.");
       return null;
     }
 
-    if (!isValidEafcTag(eafcTag)) {
-      alert("Vul een geldige EAFC gebruikersnaam in.");
+    if (!isValidEafcTag(extraField1) || !isValidEafcTag(extraField2)) {
+      alert("Vul zowel veld 1 als veld 2 in.");
       return null;
     }
 
@@ -433,7 +435,7 @@ function renderShop() {
     }
 
     const customFields = state.checkoutConfig.fields
-      .filter((field) => !["fullName", "email", "eafcTag"].includes(field.id))
+      .filter((field) => !["fullName", "email", "eafcTag", "extraInfo2"].includes(field.id))
       .map((field) => ({
         id: field.id,
         label: field.label,
@@ -441,7 +443,17 @@ function renderShop() {
       }))
       .filter((field) => field.value);
 
-    return { fullName, email, eafcTag, customFields };
+    customFields.unshift(
+      { id: "extraInfo1", label: "Extra veld 1", value: extraField1 },
+      { id: "extraInfo2", label: "Extra veld 2", value: extraField2 }
+    );
+
+    return {
+      fullName: eafcId,
+      email: primaryEmail,
+      eafcTag: eafcId,
+      customFields
+    };
   }
 
   function placeOrder(formData) {
