@@ -8,6 +8,18 @@ const DEFAULT_PRODUCTS = [
 ];
 
 const PAGE = document.body.dataset.page;
+const CLOUD_CONFIG = window.CLOUD_CONFIG || {
+  enabled: false,
+  provider: "firebase-firestore",
+  firebaseConfig: {
+    apiKey: "",
+    authDomain: "",
+    projectId: "",
+    appId: ""
+  },
+  collection: "shopData",
+  document: "global"
+};
 const MAIL_CONFIG = window.MAIL_CONFIG || {
   enabled: false,
   provider: "web3forms",
@@ -44,6 +56,16 @@ const state = {
   checkoutConfig: null,
   currentUser: JSON.parse(sessionStorage.getItem("currentUser") || "null")
 };
+
+const cloudState = {
+  enabled: false,
+  initPromise: null,
+  docRef: null,
+  unsubscribe: null,
+  applyingSnapshot: false
+};
+
+let rerenderCurrentPage = () => {};
 
 const SENSITIVE_FIELD_PATTERN = /\b(password|wachtwoord|backup\s*codes?|2fa|authenticator|recovery\s*codes?)\b/i;
 const ALLOWED_FIELD_TYPES = new Set(["text", "email", "textarea"]);
@@ -120,6 +142,96 @@ function normalizeCheckoutConfig(input) {
   };
 }
 
+function cloudAvailable() {
+  return Boolean(
+    CLOUD_CONFIG.enabled
+    && CLOUD_CONFIG.provider === "firebase-firestore"
+    && window.firebase
+    && window.firebase.firestore
+  );
+}
+
+async function initCloud() {
+  if (cloudState.initPromise) return cloudState.initPromise;
+
+  cloudState.initPromise = (async () => {
+    if (!cloudAvailable()) return false;
+
+    const hasApp = window.firebase.apps && window.firebase.apps.length > 0;
+    const app = hasApp
+      ? window.firebase.app()
+      : window.firebase.initializeApp(CLOUD_CONFIG.firebaseConfig);
+
+    const db = window.firebase.firestore(app);
+    cloudState.docRef = db
+      .collection(CLOUD_CONFIG.collection || "shopData")
+      .doc(CLOUD_CONFIG.document || "global");
+    cloudState.enabled = true;
+    return true;
+  })();
+
+  return cloudState.initPromise;
+}
+
+function applyCloudPayload(payload) {
+  if (!payload) return;
+  if (Array.isArray(payload.orders)) state.orders = payload.orders;
+  if (Array.isArray(payload.accounts)) state.accounts = payload.accounts;
+  if (Array.isArray(payload.products)) state.products = payload.products;
+  if (payload.checkoutConfig) state.checkoutConfig = normalizeCheckoutConfig(payload.checkoutConfig);
+}
+
+async function loadStateFromCloudOnce() {
+  const ready = await initCloud();
+  if (!ready || !cloudState.docRef) return;
+
+  try {
+    const snap = await cloudState.docRef.get();
+    if (!snap.exists) return;
+    const payload = snap.data()?.state;
+    if (!payload) return;
+
+    applyCloudPayload(payload);
+    saveStateLocal();
+  } catch (error) {
+    console.error("Cloud load failed:", error);
+  }
+}
+
+async function saveStateToCloud() {
+  const ready = await initCloud();
+  if (!ready || !cloudState.docRef || cloudState.applyingSnapshot) return;
+
+  try {
+    await cloudState.docRef.set({
+      state: {
+        orders: state.orders,
+        accounts: state.accounts,
+        products: state.products,
+        checkoutConfig: state.checkoutConfig,
+        updatedAt: new Date().toISOString()
+      }
+    }, { merge: true });
+  } catch (error) {
+    console.error("Cloud save failed:", error);
+  }
+}
+
+async function startCloudRealtimeSync() {
+  const ready = await initCloud();
+  if (!ready || !cloudState.docRef || cloudState.unsubscribe) return;
+
+  cloudState.unsubscribe = cloudState.docRef.onSnapshot((snap) => {
+    const payload = snap.data()?.state;
+    if (!payload) return;
+    cloudState.applyingSnapshot = true;
+    applyCloudPayload(payload);
+    saveStateLocal();
+    rerenderCurrentPage();
+    cloudState.applyingSnapshot = false;
+  });
+}
+
 state.checkoutConfig = normalizeCheckoutConfig(JSON.parse(localStorage.getItem("checkoutConfig") || "null"));
 
 function hydrateStateFromStorage() {
@@ -173,7 +285,7 @@ function ensureDefaultAdminAccount() {
   }
 }
 
-function saveState() {
+function saveStateLocal() {
   localStorage.setItem("cart", JSON.stringify(state.cart));
   localStorage.setItem("orders", JSON.stringify(state.orders));
   localStorage.setItem("accounts", JSON.stringify(state.accounts));
@@ -184,6 +296,11 @@ function saveState() {
   } else {
     sessionStorage.removeItem("currentUser");
   }
+}
+
+function saveState() {
+  saveStateLocal();
+  void saveStateToCloud();
 }
 
 function formatMoney(value) {
@@ -639,6 +756,11 @@ function renderShop() {
   });
   confirmOrderActionBtn.addEventListener("click", applyOrderAction);
   document.getElementById("checkoutBtn").addEventListener("click", () => {
+    if (!state.currentUser) {
+      authError.textContent = "Log eerst in om een bestelling te plaatsen.";
+      toggle("authModal", true);
+      return;
+    }
     toggle("checkoutModal", true);
     document.getElementById("checkoutStatus").textContent = "Maak eerst je order aan. Daarna zie je exact waar je moet betalen.";
     document.getElementById("manualPaymentInstructions").classList.add("hidden");
@@ -751,6 +873,8 @@ function renderShop() {
     renderCustomerOrders();
     updateAuthUi();
   };
+
+  rerenderCurrentPage = rerenderShop;
 
   window.addEventListener("storage", rerenderShop);
 }
@@ -1280,17 +1404,27 @@ function renderAdminPage() {
     }
   };
 
+  rerenderCurrentPage = rerenderAdmin;
+
   window.addEventListener("storage", rerenderAdmin);
 }
 
-ensureDefaultAdminAccount();
-ensureTestProduct();
-saveState();
+async function bootstrap() {
+  await loadStateFromCloudOnce();
 
-if (PAGE === "shop") {
-  renderShop();
+  ensureDefaultAdminAccount();
+  ensureTestProduct();
+  saveState();
+
+  if (PAGE === "shop") {
+    renderShop();
+  }
+
+  if (PAGE === "admin") {
+    renderAdminPage();
+  }
+
+  await startCloudRealtimeSync();
 }
 
-if (PAGE === "admin") {
-  renderAdminPage();
-}
+void bootstrap();

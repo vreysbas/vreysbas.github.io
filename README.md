@@ -7,6 +7,8 @@ Static storefront with an EAFC 26-inspired theme and admin management.
 - Admin dashboard with KPI cards, order table and CSV export
 - Product management in admin (add/edit/delete manually)
 - Duidelijke manuele PayPal betaalflow met verplicht order-ID in beschrijving
+- Checkout vereist ingelogd account
+- Optionele realtime cloud sync (Firebase Firestore) voor gedeelde data op meerdere toestellen
 - Optional order email notifications via Web3Forms
 
 ## Default Admin
@@ -18,6 +20,14 @@ Static storefront with an EAFC 26-inspired theme and admin management.
 2. Klant maakt daarna manueel over naar `congaxd@gmail.com`.
 3. Klant vermeldt verplicht het order-ID in de PayPal beschrijving.
 4. Admin controleert betaling handmatig en zet orderstatus op betaald.
+
+## Cloud Sync Setup (Meerdere toestellen)
+1. Open `cloud-config.js`
+2. Zet `enabled: true`
+3. Vul je Firebase config waarden in (`apiKey`, `authDomain`, `projectId`, `appId`)
+4. Publiceer opnieuw
+
+Daarna delen pc/telefoon dezelfde orders, producten, accounts en checkout-config.
 
 ## Optional Email Setup
 1. Open `email-config.js`
