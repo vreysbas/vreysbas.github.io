@@ -197,7 +197,8 @@ async function initCloud() {
       try {
         const auth = window.firebase.auth(app);
         if (!auth.currentUser) {
-          await auth.signInAnonymously();
+          const authTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error("auth timeout")), 4000));
+          await Promise.race([auth.signInAnonymously(), authTimeout]);
         }
       } catch (authErr) {
         console.warn("Anonymous auth failed, continuing without auth:", authErr.message);
@@ -1492,7 +1493,12 @@ function renderAdminPage() {
 }
 
 async function bootstrap() {
-  await loadStateFromCloudOnce();
+  try {
+    const cloudTimeout = new Promise((resolve) => setTimeout(resolve, 5000));
+    await Promise.race([loadStateFromCloudOnce(), cloudTimeout]);
+  } catch (_) {
+    // cloud load failed — continue with local/default state
+  }
 
   await ensureDefaultAdminAccount();
   ensureTestProduct();
@@ -1506,7 +1512,11 @@ async function bootstrap() {
     renderAdminPage();
   }
 
-  await startCloudRealtimeSync();
+  try {
+    await startCloudRealtimeSync();
+  } catch (_) {
+    // sync failed, not critical
+  }
 }
 
 void bootstrap();
