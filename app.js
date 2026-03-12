@@ -571,6 +571,46 @@ async function sendDiscordBroadcastMessage({ channelId, message, mentionEveryone
   }
 }
 
+function formatOrderDetailsLines(order) {
+  const lines = [
+    `Order-ID: ${order.id}`,
+    `Tijdstip: ${new Date(order.createdAt).toLocaleString()}`,
+    `Gebruiker: ${order.username || "guest"}`,
+    `Klant: ${order.fullName || "-"}`,
+    `E-mail: ${order.email || "-"}`,
+    `EAFC ID: ${order.eafcTag || "-"}`,
+    `Totaal: EUR ${formatMoney(order.total || 0)}`,
+    `Items: ${(order.items || []).map((item) => `${item.name} (${item.qty})`).join(", ") || "-"}`,
+    `Orderstatus: ${order.orderStatus || "-"}`,
+    `Betaalstatus: ${order.paymentStatus || "-"}`,
+    `Betaling: ${order.paymentMethod || "-"}`,
+    `Referentie: ${order.paymentReference || "-"}`
+  ];
+
+  const customFields = Array.isArray(order.customFields) ? order.customFields : [];
+  for (const field of customFields) {
+    const label = String(field?.label || field?.id || "Custom veld").trim();
+    const value = String(field?.value || "").trim();
+    if (!value) continue;
+    lines.push(`${label}: ${value}`);
+  }
+
+  const handledKeys = new Set([
+    "id", "createdAt", "username", "fullName", "email", "eafcTag", "total", "items",
+    "orderStatus", "paymentStatus", "paymentMethod", "paymentReference", "customFields"
+  ]);
+
+  for (const [key, value] of Object.entries(order || {})) {
+    if (handledKeys.has(key)) continue;
+    if (value == null || typeof value === "object") continue;
+    const raw = String(value).trim();
+    if (!raw) continue;
+    lines.push(`${key}: ${raw}`);
+  }
+
+  return lines;
+}
+
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
 }
@@ -951,23 +991,26 @@ function renderShop() {
     });
 
     if (MAIL_CONFIG.ownerEmail) {
+      const ownerDetails = formatOrderDetailsLines(order).join("\n");
       sendNotificationEmail({
         toEmail: MAIL_CONFIG.ownerEmail,
         toName: "Admin",
         subject: `Nieuwe order ontvangen: ${order.id}`,
-        message: `Nieuwe order binnengekomen.\n\nOrder-ID: ${order.id}\nTijdstip: ${new Date(order.createdAt).toLocaleString()}\nKlant: ${order.fullName} (${order.email})\nEAFC ID: ${order.eafcTag}\nTotaal: EUR ${formatMoney(order.total)}\nItems: ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}\n\nOpen de admin tab om de order te verwerken.`
+        message: `Nieuwe order binnengekomen.\n\n${ownerDetails}\n\nOpen de admin tab om de order te verwerken.`
       });
     }
 
+    const telegramDetails = formatOrderDetailsLines(order).join("\n");
     sendTelegramNotification(
-      `🛒 Nieuwe order ontvangen\n\nOrder-ID: ${order.id}\nTijdstip: ${new Date(order.createdAt).toLocaleString()}\nKlant: ${order.fullName} (${order.email})\nEAFC ID: ${order.eafcTag}\nTotaal: EUR ${formatMoney(order.total)}\nItems: ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}`
+      `🛒 Nieuwe order ontvangen\n\n${telegramDetails}`
     );
 
     const orderWebhook = getOrderNotificationWebhook();
+    const discordDetails = formatOrderDetailsLines(order).join("\n");
     sendDiscordNotification({
       webhookUrl: orderWebhook,
       mentionUserId: DISCORD_CONFIG.orderMentionUserId,
-      message: `🛒 **Nieuwe order ontvangen**\nOrder-ID: **${order.id}**\nTijdstip: ${new Date(order.createdAt).toLocaleString()}\nKlant: ${order.fullName} (${order.email})\nEAFC ID: ${order.eafcTag}\nTotaal: EUR ${formatMoney(order.total)}\nItems: ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}`
+      message: `🛒 **Nieuwe order ontvangen**\n${discordDetails}`
     });
 
     alert("Order aangemaakt. Volg nu de betaalinstructies in het checkoutvenster.");
