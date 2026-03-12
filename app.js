@@ -1880,6 +1880,7 @@ function renderAdminPage() {
           </td>
           <td>
             <textarea rows="3" data-order-note="${o.id}" placeholder="Interne notitie voor dit order...">${escapeHtml(o.adminNote || "")}</textarea>
+            <input type="text" data-order-discord-message-id="${o.id}" placeholder="Discord message ID (optional)" value="${escapeHtml(o.discordOrderMessageId || "")}">
             <p class="small-line">Discord message linked: ${o.discordOrderMessageId ? "yes" : "no"}</p>
             ${o.discordCompletionLastError ? `<p class="small-line" style="color: var(--danger)">${escapeHtml(o.discordCompletionLastError)}</p>` : ""}
           </td>
@@ -2144,17 +2145,32 @@ function renderAdminPage() {
       const selectEl = document.querySelector(`select[data-order-status="${saveOrderId}"]`);
       const noteEl = document.querySelector(`textarea[data-order-note="${saveOrderId}"]`);
       const trackingEl = document.querySelector(`input[data-order-tracking="${saveOrderId}"]`);
+      const discordMessageIdEl = document.querySelector(`input[data-order-discord-message-id="${saveOrderId}"]`);
       if (!selectEl) return;
       const order = state.orders.find((o) => o.id === saveOrderId);
       if (!order) return;
+      const previousMessageId = String(order.discordOrderMessageId || "").trim();
       const rawTrackingUrl = String(trackingEl?.value || "").trim();
       if (rawTrackingUrl && !sanitizeHttpUrl(rawTrackingUrl)) {
         alert("Tracking URL must be a valid http(s) link.");
         return;
       }
+      const rawDiscordMessageId = String(discordMessageIdEl?.value || "").trim();
+      if (rawDiscordMessageId && !/^\d{17,20}$/.test(rawDiscordMessageId)) {
+        alert("Discord message ID must be numeric (17-20 digits).");
+        return;
+      }
       order.orderStatus = selectEl.value;
       order.adminNote = String(noteEl?.value || "").trim();
       order.trackingUrl = rawTrackingUrl;
+      order.discordOrderMessageId = rawDiscordMessageId;
+      if (rawDiscordMessageId && !String(order.discordOrderWebhookUrl || "").trim()) {
+        order.discordOrderWebhookUrl = getOrderNotificationWebhook();
+      }
+      if (rawDiscordMessageId && rawDiscordMessageId !== previousMessageId) {
+        order.discordCompletionHandledAt = "";
+        order.discordCompletionLastError = "";
+      }
       if (order.orderStatus === "paid") {
         order.paymentStatus = "paid";
         order.paidAmount = Number(order.total || 0);
