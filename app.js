@@ -193,18 +193,6 @@ async function initCloud() {
       cloudState.dataRef = db.ref(CLOUD_CONFIG.path || "shopData/global");
     }
 
-    if (window.firebase.auth) {
-      try {
-        const auth = window.firebase.auth(app);
-        if (!auth.currentUser) {
-          const authTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error("auth timeout")), 4000));
-          await Promise.race([auth.signInAnonymously(), authTimeout]);
-        }
-      } catch (authErr) {
-        console.warn("Anonymous auth failed, continuing without auth:", authErr.message);
-      }
-    }
-
     cloudState.enabled = true;
     return true;
   })();
