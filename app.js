@@ -68,6 +68,7 @@ const state = {
   orders: JSON.parse(localStorage.getItem("orders")) || [],
   accounts: JSON.parse(localStorage.getItem("accounts")) || [],
   products: JSON.parse(localStorage.getItem("products")) || DEFAULT_PRODUCTS,
+  orderSequence: Number(localStorage.getItem("orderSequence") || "0"),
   checkoutConfig: null,
   currentUser: JSON.parse(sessionStorage.getItem("currentUser") || "null")
 };
@@ -265,6 +266,9 @@ function applyCloudPayload(payload) {
   if (Array.isArray(payload.orders)) state.orders = payload.orders;
   if (Array.isArray(payload.accounts)) state.accounts = payload.accounts;
   if (Array.isArray(payload.products)) state.products = payload.products;
+  if (Number.isFinite(Number(payload.orderSequence))) {
+    state.orderSequence = Number(payload.orderSequence);
+  }
   if (payload.checkoutConfig) state.checkoutConfig = normalizeCheckoutConfig(payload.checkoutConfig);
 }
 
@@ -303,6 +307,7 @@ async function saveStateToCloud() {
       orders: state.orders,
       accounts: state.accounts,
       products: state.products,
+      orderSequence: state.orderSequence,
       checkoutConfig: state.checkoutConfig,
       updatedAt: new Date().toISOString()
     }
@@ -359,6 +364,7 @@ function hydrateStateFromStorage() {
   state.orders = JSON.parse(localStorage.getItem("orders") || "[]");
   state.accounts = JSON.parse(localStorage.getItem("accounts") || "[]");
   state.products = JSON.parse(localStorage.getItem("products") || JSON.stringify(DEFAULT_PRODUCTS));
+  state.orderSequence = Number(localStorage.getItem("orderSequence") || "0");
   state.checkoutConfig = normalizeCheckoutConfig(JSON.parse(localStorage.getItem("checkoutConfig") || "null"));
   state.currentUser = JSON.parse(sessionStorage.getItem("currentUser") || "null");
 }
@@ -373,6 +379,32 @@ function storeCustomerOrderId(orderId) {
     ids.unshift(orderId);
     localStorage.setItem("customerOrderIds", JSON.stringify(ids.slice(0, 50)));
   }
+}
+
+function syncOrderSequenceFromExistingOrders() {
+  const numericIds = state.orders
+    .map((order) => String(order.id || "").trim())
+    .filter((id) => /^\d+$/.test(id))
+    .map((id) => Number(id));
+
+  const nextFromOrders = numericIds.length > 0 ? Math.max(...numericIds) + 1 : 0;
+  if (!Number.isFinite(state.orderSequence) || state.orderSequence < nextFromOrders) {
+    state.orderSequence = nextFromOrders;
+  }
+}
+
+function generateSequentialOrderId() {
+  syncOrderSequenceFromExistingOrders();
+
+  const usedIds = new Set(state.orders.map((order) => String(order.id || "").trim()));
+  let candidate = Math.max(0, Number.isFinite(state.orderSequence) ? Math.floor(state.orderSequence) : 0);
+
+  while (usedIds.has(String(candidate))) {
+    candidate += 1;
+  }
+
+  state.orderSequence = candidate + 1;
+  return String(candidate);
 }
 
 function ensureTestProduct() {
@@ -411,6 +443,7 @@ function saveStateLocal() {
   localStorage.setItem("orders", JSON.stringify(state.orders));
   localStorage.setItem("accounts", JSON.stringify(state.accounts));
   localStorage.setItem("products", JSON.stringify(state.products));
+  localStorage.setItem("orderSequence", String(state.orderSequence));
   localStorage.setItem("checkoutConfig", JSON.stringify(state.checkoutConfig));
   if (state.currentUser) {
     sessionStorage.setItem("currentUser", JSON.stringify(state.currentUser));
@@ -621,17 +654,6 @@ function isValidFullName(name) {
 
 function isValidEafcTag(tag) {
   return tag.trim().length >= 2;
-}
-
-function generateReadableOrderId() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const h = String(now.getHours()).padStart(2, "0");
-  const min = String(now.getMinutes()).padStart(2, "0");
-  const suffix = Math.floor(1000 + Math.random() * 9000);
-  return `EA26-${y}${m}${d}-${h}${min}-${suffix}`;
 }
 
 function escapeHtml(value) {
@@ -947,7 +969,7 @@ function renderShop() {
     const instructions = document.getElementById("manualPaymentInstructions");
     const summary = document.getElementById("manualPaymentSummary");
     const total = cartTotal();
-    const orderId = generateReadableOrderId();
+    const orderId = generateSequentialOrderId();
 
     const order = {
       id: orderId,
