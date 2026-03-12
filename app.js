@@ -1268,7 +1268,7 @@ function renderShop() {
     };
   }
 
-  function placeOrder(formData) {
+  async function placeOrder(formData) {
     const checkoutData = collectCheckoutData(formData);
     if (!checkoutData) return;
 
