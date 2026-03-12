@@ -818,6 +818,7 @@ function renderShop() {
   const deleteMyDataBtn = document.getElementById("deleteMyDataBtn");
   const privacyInfoLine = document.getElementById("privacyInfoLine");
   const trackingStateByOrderId = new Map();
+  const trackingLoadInFlight = new Set();
   let customerCurrency = String(localStorage.getItem("customerCurrency") || DEFAULT_CUSTOMER_CURRENCY).toUpperCase();
   if (!CUSTOMER_CURRENCIES[customerCurrency]) {
     customerCurrency = DEFAULT_CUSTOMER_CURRENCY;
@@ -959,44 +960,63 @@ function renderShop() {
           <span><strong>EAFC ID:</strong> ${order.eafcTag || "-"}</span>
           <span><strong>Items:</strong> ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}</span>
           <span><strong>Payment note:</strong> ${order.paymentStatus === "paid" ? "Payment received, check order status for progress." : `Pay manually to ${state.checkoutConfig.paypalEmail} and include this order ID in the description.`}</span>
-          ${sanitizeHttpUrl(order.trackingUrl) ? `<span><strong>Live tracking link:</strong> <a href="${escapeHtml(sanitizeHttpUrl(order.trackingUrl))}" target="_blank" rel="noopener noreferrer">Open tracker</a></span>` : "<span><strong>Live tracking:</strong> not set yet</span>"}
-          <div class="order-tracking-box" data-tracking-box="${escapeHtml(order.id)}">${escapeHtml(trackingStateByOrderId.get(order.id) || "Live status: click refresh to load")}</div>
+          ${sanitizeHttpUrl(order.trackingUrl) ? "<span><strong>Live tracking:</strong> connected</span>" : "<span><strong>Live tracking:</strong> not set yet</span>"}
+          <div class="order-tracking-box" data-tracking-box="${escapeHtml(order.id)}">${escapeHtml(trackingStateByOrderId.get(String(order.id || "")) || "Live status: waiting for first sync")}</div>
           <button class="ghost-btn" data-refresh-tracking="${escapeHtml(order.id)}">Refresh live status</button>
           ${order.adminNote ? `<span><strong>Admin note:</strong> ${escapeHtml(order.adminNote)}</span>` : ""}
         </div>
       </article>
     `).join("");
+
+    for (const order of orders) {
+      const orderKey = String(order.id || "");
+      if (!sanitizeHttpUrl(order.trackingUrl)) continue;
+      if (trackingStateByOrderId.has(orderKey) || trackingLoadInFlight.has(orderKey)) continue;
+      void refreshOrderTracking(orderKey, { silent: true });
+    }
   }
 
-  async function refreshOrderTracking(orderId) {
+  async function refreshOrderTracking(orderId, options = {}) {
+    const { silent = false } = options;
     const order = state.orders.find((entry) => String(entry.id) === String(orderId));
     if (!order) {
       alert("Order not found.");
       return;
     }
 
+    const orderKey = String(order.id || "");
+    if (trackingLoadInFlight.has(orderKey)) {
+      return;
+    }
+    trackingLoadInFlight.add(orderKey);
+
     if (!order.trackingUrl) {
-      trackingStateByOrderId.set(order.id, "Live status unavailable: no tracking link set for this order.");
+      trackingStateByOrderId.set(orderKey, "Live status unavailable: no tracking link set for this order.");
+      trackingLoadInFlight.delete(orderKey);
       renderCustomerOrders();
       return;
     }
 
     const code = getOrderTrackingCode(order.trackingUrl);
     if (!code) {
-      trackingStateByOrderId.set(order.id, "Live status unavailable: tracking link has no valid code parameter.");
+      trackingStateByOrderId.set(orderKey, "Live status unavailable: tracking link has no valid code parameter.");
+      trackingLoadInFlight.delete(orderKey);
       renderCustomerOrders();
       return;
     }
 
     if (!ORDER_TRACKING_CONFIG.enabled || !String(ORDER_TRACKING_CONFIG.proxyUrl || "").trim()) {
-      trackingStateByOrderId.set(order.id, "Live status unavailable: tracking proxy is not configured yet.");
+      trackingStateByOrderId.set(orderKey, "Live status unavailable: tracking proxy is not configured yet.");
+      trackingLoadInFlight.delete(orderKey);
       renderCustomerOrders();
       return;
     }
 
     try {
-      trackingStateByOrderId.set(order.id, "Loading live status...");
-      renderCustomerOrders();
+      if (!silent) {
+        trackingStateByOrderId.set(orderKey, "Loading live status...");
+        renderCustomerOrders();
+      }
 
       const proxyBase = String(ORDER_TRACKING_CONFIG.proxyUrl || "").trim();
       const endpoint = `${proxyBase}${proxyBase.includes("?") ? "&" : "?"}code=${encodeURIComponent(code)}`;
@@ -1019,10 +1039,12 @@ function renderShop() {
         live.lastActivity ? `Last update: ${live.lastActivity}` : ""
       ].filter(Boolean).join(" | ");
 
-      trackingStateByOrderId.set(order.id, statusText);
+      trackingStateByOrderId.set(orderKey, statusText);
+      trackingLoadInFlight.delete(orderKey);
       renderCustomerOrders();
     } catch (error) {
-      trackingStateByOrderId.set(order.id, `Live status failed: ${error.message}`);
+      trackingStateByOrderId.set(orderKey, `Live status failed: ${error.message}`);
+      trackingLoadInFlight.delete(orderKey);
       renderCustomerOrders();
     }
   }
