@@ -1,5 +1,12 @@
 export default {
   async fetch(request, env) {
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders()
+      });
+    }
+
     const url = new URL(request.url);
     const code = String(url.searchParams.get("code") || "").trim();
 
@@ -47,8 +54,16 @@ function json(payload, status = 200) {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "access-control-allow-origin": "*",
+      ...corsHeaders(),
       "cache-control": "no-store"
     }
   });
+}
+
+function corsHeaders() {
+  return {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET,OPTIONS",
+    "access-control-allow-headers": "content-type,x-tracking-token"
+  };
 }
