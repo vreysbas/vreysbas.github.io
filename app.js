@@ -31,6 +31,11 @@ const MAIL_CONFIG = window.MAIL_CONFIG || {
   fromEmail: "no-reply@example.com",
   replyTo: ""
 };
+const TELEGRAM_CONFIG = window.TELEGRAM_CONFIG || {
+  enabled: false,
+  botToken: "",
+  chatId: ""
+};
 const DEFAULT_CHECKOUT_CONFIG = {
   paymentNote: "Betalen gebeurt manueel via PayPal naar congaxd.me@gmail.com met je order-ID in de beschrijving. Zo kunnen we betalingen correct koppelen.",
   paypalEmail: "congaxd.me@gmail.com",
@@ -428,6 +433,14 @@ function notificationsEnabled() {
   return Boolean(MAIL_CONFIG.enabled && MAIL_CONFIG.provider === "web3forms" && MAIL_CONFIG.accessKey);
 }
 
+function telegramEnabled() {
+  return Boolean(
+    TELEGRAM_CONFIG.enabled
+    && String(TELEGRAM_CONFIG.botToken || "").trim()
+    && String(TELEGRAM_CONFIG.chatId || "").trim()
+  );
+}
+
 async function sendNotificationEmail({ toEmail, toName, subject, message }) {
   try {
     if (!notificationsEnabled()) return;
@@ -454,6 +467,25 @@ async function sendNotificationEmail({ toEmail, toName, subject, message }) {
     });
   } catch (error) {
     console.error("Email send failed:", error);
+  }
+}
+
+async function sendTelegramNotification(message) {
+  try {
+    if (!telegramEnabled()) return;
+
+    const url = `https://api.telegram.org/bot${TELEGRAM_CONFIG.botToken}/sendMessage`;
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CONFIG.chatId,
+        text: String(message || ""),
+        disable_web_page_preview: true
+      })
+    });
+  } catch (error) {
+    console.error("Telegram send failed:", error);
   }
 }
 
@@ -844,6 +876,10 @@ function renderShop() {
         message: `Nieuwe order binnengekomen.\n\nOrder-ID: ${order.id}\nTijdstip: ${new Date(order.createdAt).toLocaleString()}\nKlant: ${order.fullName} (${order.email})\nEAFC ID: ${order.eafcTag}\nTotaal: EUR ${formatMoney(order.total)}\nItems: ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}\n\nOpen de admin tab om de order te verwerken.`
       });
     }
+
+    sendTelegramNotification(
+      `🛒 Nieuwe order ontvangen\n\nOrder-ID: ${order.id}\nTijdstip: ${new Date(order.createdAt).toLocaleString()}\nKlant: ${order.fullName} (${order.email})\nEAFC ID: ${order.eafcTag}\nTotaal: EUR ${formatMoney(order.total)}\nItems: ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}`
+    );
 
     alert("Order aangemaakt. Volg nu de betaalinstructies in het checkoutvenster.");
   }
