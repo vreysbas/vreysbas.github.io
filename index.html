@@ -1,5 +1,5 @@
 ﻿<!doctype html>
-<html lang="nl">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,8 +14,15 @@
   <header class="topbar">
     <div class="brand">EAFC 26 Hub</div>
     <nav>
-      <button id="openCartBtn" class="ghost-btn">Winkelmand (<span id="cartCount">0</span>)</button>
-      <button id="openOrdersBtn" class="ghost-btn">Mijn orders</button>
+      <label class="currency-picker" for="currencySelect">Currency
+        <select id="currencySelect" class="ghost-btn">
+          <option value="EUR">EUR (€)</option>
+          <option value="USD">USD ($)</option>
+          <option value="GBP">GBP (£)</option>
+        </select>
+      </label>
+      <button id="openCartBtn" class="ghost-btn">Cart (<span id="cartCount">0</span>)</button>
+      <button id="openOrdersBtn" class="ghost-btn">My orders</button>
       <a id="adminTabLink" href="admin.html" class="ghost-btn link-btn hidden">Admin Tab</a>
       <button id="openAuthBtn" class="ghost-btn">Login / Register</button>
       <button id="logoutBtn" class="ghost-btn hidden">Logout</button>
@@ -25,42 +32,43 @@
   <main class="layout">
     <section class="hero">
       <h1>EAFC 26 Storefront</h1>
-      <p>Shop jouw upgrades, packs en guides. Jij beheert de producten zelf in de admin tab.</p>
-      <p id="userWelcome" class="welcome-line">Niet ingelogd</p>
-      <p id="storePaymentNote" class="note">Betalen gebeurt manueel via PayPal naar congaxd.me@gmail.com met je order-ID in de beschrijving. Zo kunnen we betalingen correct koppelen.</p>
+      <p>Shop your upgrades, packs and guides. Products are managed from the admin tab.</p>
+      <p id="userWelcome" class="welcome-line">Not logged in</p>
+      <p id="storePaymentNote" class="note">Payments are handled manually via PayPal to congaxd.me@gmail.com. Include your order ID in the description.</p>
+      <p class="note">Delivery limit: maximum 1M coins per 36 hours. Orders above this limit continue automatically after the next 36h window.</p>
     </section>
 
     <section>
-      <h2 class="section-title">Producten</h2>
+      <h2 class="section-title">Products</h2>
       <div id="productGrid" class="product-grid"></div>
     </section>
   </main>
 
   <aside id="cartPanel" class="panel hidden">
     <div class="panel-head">
-      <h3>Winkelmand</h3>
+      <h3>Cart</h3>
       <button id="closeCartBtn" class="close-btn">x</button>
     </div>
     <div id="cartItems" class="stack"></div>
     <div class="panel-foot">
-      <p>Totaal: EUR <span id="cartTotal">0.00</span></p>
-      <button id="checkoutBtn" class="primary-btn">Ga naar checkout</button>
+      <p>Total: <span id="cartTotal">€0.00</span></p>
+      <button id="checkoutBtn" class="primary-btn">Go to checkout</button>
     </div>
   </aside>
 
   <section id="ordersPanel" class="modal hidden">
     <div class="modal-card orders-fullscreen-card">
       <div class="panel-head">
-        <h3>Mijn orders</h3>
-        <button id="closeOrdersBtn" class="close-btn" aria-label="Sluit mijn orders">×</button>
+        <h3>My orders</h3>
+        <button id="closeOrdersBtn" class="close-btn" aria-label="Close my orders">×</button>
       </div>
       <div class="status-guide">
-        <p class="small-line"><strong>Zo lees je je order:</strong></p>
-        <p class="small-line">awaiting_payment: nog niet betaald</p>
-        <p class="small-line">payment_review: betaling wordt gecontroleerd</p>
-        <p class="small-line">queued: order staat klaar in wachtrij</p>
-        <p class="small-line">in_progress: we zijn bezig</p>
-        <p class="small-line">completed: order afgerond</p>
+        <p class="small-line"><strong>Order status guide:</strong></p>
+        <p class="small-line">awaiting_payment: not paid yet</p>
+        <p class="small-line">payment_review: payment is being verified</p>
+        <p class="small-line">queued: order is queued</p>
+        <p class="small-line">in_progress: order is being processed</p>
+        <p class="small-line">completed: order finished</p>
       </div>
       <div id="customerOrdersList" class="orders-grid"></div>
     </div>
@@ -69,13 +77,13 @@
   <section id="orderActionConfirmModal" class="modal hidden">
     <div class="modal-card auth-card">
       <div class="panel-head">
-        <h3 id="orderActionConfirmTitle">Bevestig actie</h3>
+        <h3 id="orderActionConfirmTitle">Confirm action</h3>
         <button id="closeOrderActionConfirmBtn" class="close-btn">x</button>
       </div>
       <p id="orderActionConfirmMessage" class="small-line"></p>
       <div class="actions-row">
-        <button id="confirmOrderActionBtn" class="primary-btn">Ja, doorgaan</button>
-        <button id="cancelOrderActionBtn" class="ghost-btn">Annuleren</button>
+        <button id="confirmOrderActionBtn" class="primary-btn">Yes, continue</button>
+        <button id="cancelOrderActionBtn" class="ghost-btn">Cancel</button>
       </div>
     </div>
   </section>
@@ -89,33 +97,33 @@
       <form id="checkoutForm" class="form-grid">
         <div id="checkoutFieldsContainer" class="form-grid"></div>
         <div class="refund-warning">
-          <strong>Belangrijk:</strong> <span id="refundWarningText">Als je fout betaalt (verkeerd bedrag, verkeerde ontvanger of zonder correct order-ID), is er geen refund mogelijk.</span>
+          <strong>Important:</strong> <span id="refundWarningText">If you pay incorrectly (wrong amount, wrong receiver, or missing order ID), no refund is possible.</span>
         </div>
         <label class="checkbox-line">
           <input type="checkbox" name="noRefundAck" required>
-          Ik begrijp dat foutieve betalingen niet terugbetaald worden.
+          I understand that incorrect payments are non-refundable.
         </label>
         <label class="checkbox-line">
           <input type="checkbox" name="privacyConsentCheckout" required>
-          Ik geef toestemming voor verwerking van mijn gegevens voor orderafhandeling.
+          I consent to processing my data for order handling.
         </label>
-        <button type="submit" class="primary-btn">Order aanmaken</button>
+        <button type="submit" class="primary-btn">Create order</button>
         <p id="checkoutStatus" class="small-line"></p>
         <div id="manualPaymentInstructions" class="paypal-section hidden">
-          <p id="instructionIntro" class="small-line">Volg exact deze stappen om problemen te vermijden:</p>
+          <p id="instructionIntro" class="small-line">Follow these steps exactly to avoid delays:</p>
           <ol id="instructionList" class="instruction-list">
-            <li>Open PayPal en kies geld verzenden.</li>
-            <li>Stuur exact het orderbedrag naar <strong>congaxd.me@gmail.com</strong>.</li>
-            <li>Zet je order-ID in de beschrijving.</li>
-            <li>Bij fouten in bedrag, ontvanger of beschrijving is er geen refund mogelijk.</li>
-            <li>Na betaling controleren wij handmatig en zetten we je order op betaald.</li>
+            <li>Open PayPal and choose Send Money.</li>
+            <li>Send the exact order amount to <strong>congaxd.me@gmail.com</strong>.</li>
+            <li>Put your order ID in the payment description.</li>
+            <li>Wrong amount, wrong receiver or missing order ID is non-refundable.</li>
+            <li>After payment we verify manually and update your order status.</li>
           </ol>
           <p id="manualPaymentSummary" class="small-line"></p>
           <div class="order-actions">
             <button type="button" id="checkoutPaidBtn" class="primary-btn">I paid</button>
             <button type="button" id="checkoutCancelBtn" class="ghost-btn danger-btn">Cancel</button>
           </div>
-          <p class="small-line">Na het aanmaken vind je je order ook terug in de tab Mijn orders.</p>
+          <p class="small-line">After creating the order, you can always find it in My orders.</p>
         </div>
       </form>
     </div>
@@ -140,14 +148,14 @@
         <label>Password
           <input type="password" name="password" required>
         </label>
-        <button type="submit" class="primary-btn">Inloggen</button>
+        <button type="submit" class="primary-btn">Log in</button>
       </form>
 
       <form id="registerForm" class="form-grid hidden">
         <label>Username
           <input name="username" required>
         </label>
-        <label>E-mail
+        <label>Email
           <input type="email" name="email" required>
         </label>
         <label>Password
@@ -155,15 +163,15 @@
         </label>
         <label class="checkbox-line">
           <input type="checkbox" name="privacyConsentRegister" required>
-          Ik geef toestemming voor verwerking van mijn accountgegevens.
+          I consent to processing my account data.
         </label>
-        <button type="submit" class="primary-btn">Account aanmaken</button>
+        <button type="submit" class="primary-btn">Create account</button>
       </form>
 
       <p id="privacyInfoLine" class="small-line"></p>
       <div class="actions-row">
-        <button id="downloadMyDataBtn" type="button" class="ghost-btn hidden">Download mijn data</button>
-        <button id="deleteMyDataBtn" type="button" class="ghost-btn danger-btn hidden">Verwijder mijn account + data</button>
+        <button id="downloadMyDataBtn" type="button" class="ghost-btn hidden">Download my data</button>
+        <button id="deleteMyDataBtn" type="button" class="ghost-btn danger-btn hidden">Delete my account + data</button>
       </div>
       <p id="authError" class="error-text"></p>
     </div>
@@ -176,6 +184,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
   <script src="cloud-config.js"></script>
-  <script src="app.js?v=20260312-ordernum-fix"></script>
+  <script src="app.js?v=20260312-shop-en-currency"></script>
 </body>
 </html>

@@ -39,6 +39,25 @@ body {
   padding: 16px 22px;
 }
 
+.topbar nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.currency-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.currency-picker select {
+  min-width: 112px;
+}
+
 .brand {
   font-family: "Fraunces", serif;
   font-size: 1.35rem;

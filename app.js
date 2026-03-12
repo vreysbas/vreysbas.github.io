@@ -45,23 +45,34 @@ const DISCORD_CONFIG = window.DISCORD_CONFIG || {
   broadcastChannels: {}
 };
 const DEFAULT_CHECKOUT_CONFIG = {
-  paymentNote: "Betalen gebeurt manueel via PayPal naar congaxd.me@gmail.com met je order-ID in de beschrijving. Zo kunnen we betalingen correct koppelen.",
+  paymentNote: "Payments are handled manually via PayPal to congaxd.me@gmail.com. Always include your order ID in the description so we can match your payment.",
   paypalEmail: "congaxd.me@gmail.com",
-  refundWarning: "Als je fout betaalt (verkeerd bedrag, verkeerde ontvanger of zonder correct order-ID), is er geen refund mogelijk.",
-  instructionIntro: "Volg exact deze stappen om problemen te vermijden:",
+  refundWarning: "If you pay incorrectly (wrong amount, wrong receiver, or missing order ID), no refund is possible.",
+  instructionIntro: "Follow these steps exactly to avoid delays:",
   instructionSteps: [
-    "Open PayPal en kies geld verzenden.",
-    "Stuur exact het orderbedrag naar congaxd.me@gmail.com.",
-    "Zet je order-ID in de beschrijving.",
-    "Bij fouten in bedrag, ontvanger of beschrijving is er geen refund mogelijk.",
-    "Na betaling controleren wij handmatig en zetten we je order op betaald."
+    "Open PayPal and choose Send Money.",
+    "Send the exact order amount to congaxd.me@gmail.com.",
+    "Put your order ID in the payment description.",
+    "Wrong amount, wrong receiver or missing order ID is non-refundable.",
+    "After payment we verify manually and update your order status."
   ],
   fields: [
-    { id: "fullName", label: "EAFC E-mail", type: "email", placeholder: "naam@email.com", required: true, locked: true, validation: "email", masked: false },
-    { id: "eafcTag", label: "Info 1.", type: "text", placeholder: "1.", required: true, locked: true, validation: "min2", masked: false },
-    { id: "extraInfo2", label: "Info 2.", type: "text", placeholder: "2.", required: true, locked: true, validation: "min2", masked: false }
+    { id: "fullName", label: "EAFC Email", type: "email", placeholder: "name@email.com", required: true, locked: true, validation: "email", masked: false },
+    { id: "eafcTag", label: "Info 1", type: "text", placeholder: "Info 1", required: true, locked: true, validation: "min2", masked: false },
+    { id: "extraInfo2", label: "Info 2", type: "text", placeholder: "Info 2", required: true, locked: true, validation: "min2", masked: false }
   ]
 };
+
+const LEGACY_CHECKOUT_TEXT_MAP = new Map([
+  ["Betalen gebeurt manueel via PayPal naar congaxd.me@gmail.com met je order-ID in de beschrijving. Zo kunnen we betalingen correct koppelen.", DEFAULT_CHECKOUT_CONFIG.paymentNote],
+  ["Als je fout betaalt (verkeerd bedrag, verkeerde ontvanger of zonder correct order-ID), is er geen refund mogelijk.", DEFAULT_CHECKOUT_CONFIG.refundWarning],
+  ["Volg exact deze stappen om problemen te vermijden:", DEFAULT_CHECKOUT_CONFIG.instructionIntro],
+  ["Open PayPal en kies geld verzenden.", DEFAULT_CHECKOUT_CONFIG.instructionSteps[0]],
+  ["Stuur exact het orderbedrag naar congaxd.me@gmail.com.", DEFAULT_CHECKOUT_CONFIG.instructionSteps[1]],
+  ["Zet je order-ID in de beschrijving.", DEFAULT_CHECKOUT_CONFIG.instructionSteps[2]],
+  ["Bij fouten in bedrag, ontvanger of beschrijving is er geen refund mogelijk.", DEFAULT_CHECKOUT_CONFIG.instructionSteps[3]],
+  ["Na betaling controleren wij handmatig en zetten we je order op betaald.", DEFAULT_CHECKOUT_CONFIG.instructionSteps[4]]
+]);
 
 const state = {
   cart: JSON.parse(localStorage.getItem("cart")) || [],
@@ -94,6 +105,12 @@ const PRIVACY_CONTACT_EMAIL = "congaxd.me@gmail.com";
 const ORDER_FINAL_STATUSES = new Set(["completed", "cancelled", "delivered"]);
 const LEGACY_EMAIL = "congaxd@gmail.com";
 const CURRENT_EMAIL = "congaxd.me@gmail.com";
+const CUSTOMER_CURRENCIES = {
+  EUR: { label: "EUR (€)", rate: 1, locale: "en-IE", currency: "EUR" },
+  USD: { label: "USD ($)", rate: 1.09, locale: "en-US", currency: "USD" },
+  GBP: { label: "GBP (£)", rate: 0.85, locale: "en-GB", currency: "GBP" }
+};
+const DEFAULT_CUSTOMER_CURRENCY = "EUR";
 
 async function hashPassword(plain) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("eafc26hub:" + plain));
@@ -110,6 +127,11 @@ function normalizeEmail(value) {
 
 function replaceLegacyEmailText(value) {
   return String(value || "").replaceAll(LEGACY_EMAIL, CURRENT_EMAIL);
+}
+
+function localizeLegacyCheckoutText(value) {
+  const normalized = replaceLegacyEmailText(value).trim();
+  return LEGACY_CHECKOUT_TEXT_MAP.get(normalized) || normalized;
 }
 
 function setPrivacyConsent(scope) {
@@ -204,12 +226,12 @@ function normalizeCheckoutConfig(input) {
   );
 
   return {
-    paymentNote: replaceLegacyEmailText(source.paymentNote || DEFAULT_CHECKOUT_CONFIG.paymentNote),
+    paymentNote: localizeLegacyCheckoutText(source.paymentNote || DEFAULT_CHECKOUT_CONFIG.paymentNote),
     paypalEmail: replaceLegacyEmailText(source.paypalEmail || DEFAULT_CHECKOUT_CONFIG.paypalEmail),
-    refundWarning: String(source.refundWarning || DEFAULT_CHECKOUT_CONFIG.refundWarning),
-    instructionIntro: replaceLegacyEmailText(source.instructionIntro || DEFAULT_CHECKOUT_CONFIG.instructionIntro),
+    refundWarning: localizeLegacyCheckoutText(source.refundWarning || DEFAULT_CHECKOUT_CONFIG.refundWarning),
+    instructionIntro: localizeLegacyCheckoutText(source.instructionIntro || DEFAULT_CHECKOUT_CONFIG.instructionIntro),
     instructionSteps: Array.isArray(source.instructionSteps) && source.instructionSteps.length > 0
-      ? source.instructionSteps.map((step) => replaceLegacyEmailText(step).trim()).filter(Boolean)
+      ? source.instructionSteps.map((step) => localizeLegacyCheckoutText(step)).filter(Boolean)
       : [...DEFAULT_CHECKOUT_CONFIG.instructionSteps],
     fields
   };
@@ -692,13 +714,13 @@ function validateFieldRule(value, field) {
 
   switch (field.validation) {
     case "email":
-      return isValidEmail(value) ? "" : `${field.label} moet een geldig e-mailadres zijn.`;
+      return isValidEmail(value) ? "" : `${field.label} must be a valid email address.`;
     case "containsAt":
-      return value.includes("@") ? "" : `${field.label} moet minstens een @ bevatten.`;
+      return value.includes("@") ? "" : `${field.label} must contain at least one @.`;
     case "min2":
-      return value.length >= 2 ? "" : `${field.label} moet minstens 2 tekens hebben.`;
+      return value.length >= 2 ? "" : `${field.label} must contain at least 2 characters.`;
     case "min6":
-      return value.length >= 6 ? "" : `${field.label} moet minstens 6 tekens hebben.`;
+      return value.length >= 6 ? "" : `${field.label} must contain at least 6 characters.`;
     default:
       return "";
   }
@@ -727,10 +749,47 @@ function renderShop() {
   const userWelcome = document.getElementById("userWelcome");
   const openAuthBtn = document.getElementById("openAuthBtn");
   const logoutBtn = document.getElementById("logoutBtn");
+  const currencySelect = document.getElementById("currencySelect");
   const authError = document.getElementById("authError");
   const downloadMyDataBtn = document.getElementById("downloadMyDataBtn");
   const deleteMyDataBtn = document.getElementById("deleteMyDataBtn");
   const privacyInfoLine = document.getElementById("privacyInfoLine");
+  let customerCurrency = String(localStorage.getItem("customerCurrency") || DEFAULT_CUSTOMER_CURRENCY).toUpperCase();
+  if (!CUSTOMER_CURRENCIES[customerCurrency]) {
+    customerCurrency = DEFAULT_CUSTOMER_CURRENCY;
+  }
+
+  function getCustomerCurrencyConfig() {
+    return CUSTOMER_CURRENCIES[customerCurrency] || CUSTOMER_CURRENCIES[DEFAULT_CUSTOMER_CURRENCY];
+  }
+
+  function formatCustomerMoney(value) {
+    const config = getCustomerCurrencyConfig();
+    const amount = Number(value || 0) * config.rate;
+    return new Intl.NumberFormat(config.locale, {
+      style: "currency",
+      currency: config.currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+  }
+
+  if (currencySelect) {
+    currencySelect.innerHTML = Object.entries(CUSTOMER_CURRENCIES)
+      .map(([code, config]) => `<option value="${code}">${config.label}</option>`)
+      .join("");
+    currencySelect.value = customerCurrency;
+    currencySelect.addEventListener("change", (event) => {
+      customerCurrency = String(event.target.value || DEFAULT_CUSTOMER_CURRENCY).toUpperCase();
+      if (!CUSTOMER_CURRENCIES[customerCurrency]) {
+        customerCurrency = DEFAULT_CUSTOMER_CURRENCY;
+      }
+      localStorage.setItem("customerCurrency", customerCurrency);
+      renderProducts();
+      renderCart();
+      renderCustomerOrders();
+    });
+  }
   let pendingOrderAction = null;
   let latestCheckoutOrderId = null;
 
@@ -743,15 +802,15 @@ function renderShop() {
     downloadMyDataBtn?.classList.toggle("hidden", !loggedIn);
     deleteMyDataBtn?.classList.toggle("hidden", !loggedIn || isAdmin);
     userWelcome.textContent = loggedIn
-      ? `Ingelogd als ${state.currentUser.username}${isAdmin ? " (admin)" : ""}`
-      : "Niet ingelogd";
+      ? `Logged in as ${state.currentUser.username}${isAdmin ? " (admin)" : ""}`
+      : "Not logged in";
   }
 
   function renderProducts() {
     productGrid.innerHTML = state.products.map((p) => `
       <article class="product-card">
         <h3>${p.name}</h3>
-        <p class="price">EUR ${formatMoney(p.price)}</p>
+        <p class="price">${formatCustomerMoney(p.price)}</p>
         <button class="primary-btn" data-add="${p.id}">Add to cart</button>
       </article>
     `).join("");
@@ -783,7 +842,7 @@ function renderShop() {
         <label>${safeLabel}
           <div class="input-with-toggle">
             <input id="${inputId}" name="${field.id}" type="${inputType}" ${field.required ? "required" : ""} placeholder="${safePlaceholder}">
-            ${field.masked ? `<button type="button" class="ghost-btn small-toggle-btn" data-toggle-mask="${inputId}">Oogje</button>` : ""}
+            ${field.masked ? `<button type="button" class="ghost-btn small-toggle-btn" data-toggle-mask="${inputId}">Show</button>` : ""}
           </div>
         </label>
       `;
@@ -792,10 +851,10 @@ function renderShop() {
 
   function renderCart() {
     cartCount.textContent = state.cart.reduce((n, item) => n + item.qty, 0);
-    cartTotalEl.textContent = formatMoney(cartTotal());
+    cartTotalEl.textContent = formatCustomerMoney(cartTotal());
 
     if (state.cart.length === 0) {
-      cartItems.innerHTML = "<p>Je winkelmand is leeg.</p>";
+      cartItems.innerHTML = "<p>Your cart is empty.</p>";
       return;
     }
 
@@ -803,9 +862,9 @@ function renderShop() {
       <div class="cart-item">
         <div>
           <strong>${item.name}</strong><br>
-          EUR ${formatMoney(item.price)} x ${item.qty}
+          ${formatCustomerMoney(item.price)} x ${item.qty}
         </div>
-        <button class="ghost-btn" data-remove="${item.id}">Verwijder</button>
+        <button class="ghost-btn" data-remove="${item.id}">Remove</button>
       </div>
     `).join("");
   }
@@ -820,7 +879,7 @@ function renderShop() {
     });
 
     if (orders.length === 0) {
-      customerOrdersList.innerHTML = "<p>Je hebt nog geen orders.</p>";
+      customerOrdersList.innerHTML = "<p>You don't have any orders yet.</p>";
       return;
     }
 
@@ -831,12 +890,12 @@ function renderShop() {
           <span class="status-badge ${order.paymentStatus === "paid" ? "paid" : "pending"}">${order.paymentStatus}</span>
         </div>
         <div class="order-meta">
-          <span><strong>Orderstatus:</strong> ${order.orderStatus}</span>
-          <span><strong>Totaal:</strong> EUR ${formatMoney(order.total)}</span>
+          <span><strong>Order status:</strong> ${order.orderStatus}</span>
+          <span><strong>Total:</strong> ${formatCustomerMoney(order.total)}</span>
           <span><strong>EAFC ID:</strong> ${order.eafcTag || "-"}</span>
           <span><strong>Items:</strong> ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}</span>
-          <span><strong>Uitleg:</strong> ${order.paymentStatus === "paid" ? "Betaling ontvangen, check de orderstatus voor de voortgang." : `Betaal handmatig naar ${state.checkoutConfig.paypalEmail} met dit order-ID in de beschrijving.`}</span>
-          ${order.adminNote ? `<span><strong>Admin notitie:</strong> ${escapeHtml(order.adminNote)}</span>` : ""}
+          <span><strong>Payment note:</strong> ${order.paymentStatus === "paid" ? "Payment received, check order status for progress." : `Pay manually to ${state.checkoutConfig.paypalEmail} and include this order ID in the description.`}</span>
+          ${order.adminNote ? `<span><strong>Admin note:</strong> ${escapeHtml(order.adminNote)}</span>` : ""}
         </div>
       </article>
     `).join("");
@@ -845,10 +904,10 @@ function renderShop() {
   function openOrderActionConfirm(action, orderId) {
     pendingOrderAction = { action, orderId };
     if (action === "cancelled") {
-      orderActionConfirmTitle.textContent = "Bevestig annulering";
-      orderActionConfirmMessage.textContent = `Wil je order ${orderId} afbreken of verderzetten?`;
-      confirmOrderActionBtn.textContent = "Order afbreken";
-      cancelOrderActionBtn.textContent = "Verderzetten";
+      orderActionConfirmTitle.textContent = "Confirm cancellation";
+      orderActionConfirmMessage.textContent = `Do you want to cancel order ${orderId} or continue?`;
+      confirmOrderActionBtn.textContent = "Cancel order";
+      cancelOrderActionBtn.textContent = "Continue";
     }
     toggle("orderActionConfirmModal", true);
   }
@@ -873,20 +932,20 @@ function renderShop() {
 
     saveState();
     renderCustomerOrders();
-    cancelOrderActionBtn.textContent = "Annuleren";
+    cancelOrderActionBtn.textContent = "Cancel";
     toggle("orderActionConfirmModal", false);
     pendingOrderAction = null;
   }
 
   function markLatestOrderAsPaidByCustomer() {
     if (!latestCheckoutOrderId) {
-      alert("Maak eerst een order aan voor je op I paid drukt.");
+      alert("Create an order first before pressing I paid.");
       return;
     }
 
     const order = state.orders.find((x) => x.id === latestCheckoutOrderId);
     if (!order) {
-      alert("Order niet gevonden.");
+      alert("Order not found.");
       return;
     }
 
@@ -900,7 +959,7 @@ function renderShop() {
     toggle("checkoutModal", false);
     renderCustomerOrders();
     toggle("ordersPanel", true);
-    alert("Betaling gemeld. Je order staat nu op payment_review.");
+    alert("Payment reported. Your order is now in payment_review.");
   }
 
   function addToCart(productId) {
@@ -926,7 +985,7 @@ function renderShop() {
 
   function collectCheckoutData(formData) {
     if (state.cart.length === 0) {
-      alert("Je winkelmand is leeg.");
+      alert("Your cart is empty.");
       return null;
     }
 
@@ -946,12 +1005,12 @@ function renderShop() {
     }
 
     if (!noRefundAck) {
-      alert("Je moet bevestigen dat foutieve betalingen niet terugbetaald worden.");
+      alert("You must confirm that incorrect payments are non-refundable.");
       return null;
     }
 
     if (!privacyConsent) {
-      alert("Je moet privacy-toestemming geven om een bestelling te plaatsen.");
+      alert("You must provide privacy consent to place an order.");
       return null;
     }
 
@@ -967,8 +1026,8 @@ function renderShop() {
       .filter((field) => !["fullName", "eafcTag", "extraInfo2"].includes(field.id))
       .filter((field) => String(field.value || "").trim());
 
-    const extra1Label = checkoutFieldValues.find((field) => field.id === "eafcTag")?.label || "Extra veld 1";
-    const extra2Label = checkoutFieldValues.find((field) => field.id === "extraInfo2")?.label || "Extra veld 2";
+    const extra1Label = checkoutFieldValues.find((field) => field.id === "eafcTag")?.label || "Extra field 1";
+    const extra2Label = checkoutFieldValues.find((field) => field.id === "extraInfo2")?.label || "Extra field 2";
 
     customFields.unshift(
       { id: "extraInfo1", label: extra1Label, value: extraField1 },
@@ -1021,7 +1080,7 @@ function renderShop() {
       paymentMethod: "paypal-manual-transfer",
       paymentStatus: "pending",
       paidAmount: 0,
-      paymentReference: `Gebruik order-ID ${orderId} in PayPal beschrijving`,
+      paymentReference: `Use order ID ${orderId} in PayPal description`,
       createdAt: new Date().toISOString()
     };
 
@@ -1033,20 +1092,21 @@ function renderShop() {
     renderCart();
     renderCustomerOrders();
     instructions.classList.remove("hidden");
-    checkoutStatus.textContent = "Order aangemaakt. Betaal nu exact volgens onderstaande stappen.";
+    checkoutStatus.textContent = "Order created. Follow the payment steps below exactly.";
     summary.innerHTML = `
-      <strong>Te betalen:</strong> EUR ${formatMoney(order.total)}<br>
+      <strong>Total in selected currency:</strong> ${formatCustomerMoney(order.total)}<br>
+      <strong>Settlement currency:</strong> EUR ${formatMoney(order.total)}<br>
       <strong>PayPal account:</strong> ${escapeHtml(state.checkoutConfig.paypalEmail)}<br>
-      <strong>Order-ID voor beschrijving:</strong> ${order.id}<br>
-      <strong>Belangrijk:</strong> Zonder dit order-ID in de beschrijving kunnen we je betaling niet koppelen.<br>
+      <strong>Order ID for description:</strong> ${order.id}<br>
+      <strong>Important:</strong> Without this order ID in the description we cannot match your payment.<br>
       <strong>Refund policy:</strong> ${escapeHtml(state.checkoutConfig.refundWarning)}
     `;
 
     sendNotificationEmail({
       toEmail: order.email,
       toName: order.fullName,
-      subject: `EAFC 26 Hub - Bevestiging bestelling ${order.id}`,
-      message: `Beste ${order.fullName},\n\nBedankt voor je bestelling bij EAFC 26 Hub.\n\nBestelgegevens\n- Bestelnummer: ${order.id}\n- Datum: ${new Date(order.createdAt).toLocaleString()}\n- Totaalbedrag: EUR ${formatMoney(order.total)}\n- EAFC gebruikersnaam: ${order.eafcTag}\n- Betaalmethode: Manuele PayPal overschrijving\n\nBetaal nu naar: ${state.checkoutConfig.paypalEmail}\nVermeld verplicht dit order-ID in de beschrijving: ${order.id}\n\nRefund policy: ${state.checkoutConfig.refundWarning}\n\nNa controle zetten we je order op betaald.\n\nMet vriendelijke groeten,\nEAFC 26 Hub`
+      subject: `EAFC 26 Hub - Order confirmation ${order.id}`,
+      message: `Hi ${order.fullName},\n\nThanks for your order at EAFC 26 Hub.\n\nOrder details\n- Order number: ${order.id}\n- Date: ${new Date(order.createdAt).toLocaleString()}\n- Total amount: EUR ${formatMoney(order.total)}\n- EAFC username: ${order.eafcTag}\n- Payment method: Manual PayPal transfer\n\nPlease pay to: ${state.checkoutConfig.paypalEmail}\nRequired: include this order ID in the description: ${order.id}\n\nRefund policy: ${state.checkoutConfig.refundWarning}\n\nAfter manual verification we will update your order.\n\nKind regards,\nEAFC 26 Hub`
     });
 
     if (MAIL_CONFIG.ownerEmail) {
@@ -1075,7 +1135,7 @@ function renderShop() {
       message: `🛒 **Nieuwe order ontvangen**\n${discordDetails}`
     });
 
-    alert("Order aangemaakt. Volg nu de betaalinstructies in het checkoutvenster.");
+    alert("Order created. Follow the payment instructions in the checkout window.");
   }
 
   function closeCheckoutModal() {
@@ -1109,30 +1169,30 @@ function renderShop() {
   checkoutPaidBtn.addEventListener("click", markLatestOrderAsPaidByCustomer);
   checkoutCancelBtn.addEventListener("click", () => {
     if (!latestCheckoutOrderId) {
-      alert("Maak eerst een order aan voor je op Cancel drukt.");
+      alert("Create an order first before pressing Cancel.");
       return;
     }
     openOrderActionConfirm("cancelled", latestCheckoutOrderId);
   });
   document.getElementById("closeOrderActionConfirmBtn").addEventListener("click", () => {
     pendingOrderAction = null;
-    cancelOrderActionBtn.textContent = "Annuleren";
+    cancelOrderActionBtn.textContent = "Cancel";
     toggle("orderActionConfirmModal", false);
   });
   document.getElementById("cancelOrderActionBtn").addEventListener("click", () => {
     pendingOrderAction = null;
-    cancelOrderActionBtn.textContent = "Annuleren";
+    cancelOrderActionBtn.textContent = "Cancel";
     toggle("orderActionConfirmModal", false);
   });
   confirmOrderActionBtn.addEventListener("click", applyOrderAction);
   document.getElementById("checkoutBtn").addEventListener("click", () => {
     if (!state.currentUser) {
-      authError.textContent = "Log eerst in om een bestelling te plaatsen.";
+      authError.textContent = "Log in first to place an order.";
       toggle("authModal", true);
       return;
     }
     toggle("checkoutModal", true);
-    document.getElementById("checkoutStatus").textContent = "Maak eerst je order aan. Daarna zie je exact waar je moet betalen.";
+    document.getElementById("checkoutStatus").textContent = "Create your order first. Then you will see exact payment instructions.";
     document.getElementById("manualPaymentInstructions").classList.add("hidden");
     document.getElementById("manualPaymentSummary").textContent = "";
   });
@@ -1177,7 +1237,7 @@ function renderShop() {
       return isHashed(a.password) ? a.password === hashedInput : a.password === password;
     });
     if (!account) {
-      authError.textContent = "Login mislukt.";
+      authError.textContent = "Login failed.";
       return;
     }
 
@@ -1206,17 +1266,17 @@ function renderShop() {
     const privacyConsent = data.get("privacyConsentRegister") === "on";
 
     if (!username || !email || !password) {
-      authError.textContent = "Vul alle velden in.";
+      authError.textContent = "Please fill in all fields.";
       return;
     }
 
     if (!privacyConsent) {
-      authError.textContent = "Je moet eerst privacy-toestemming geven.";
+      authError.textContent = "You must accept privacy consent first.";
       return;
     }
 
     if (state.accounts.some((a) => a.username.toLowerCase() === username.toLowerCase())) {
-      authError.textContent = "Username bestaat al.";
+      authError.textContent = "Username already exists.";
       return;
     }
 
@@ -1246,12 +1306,12 @@ function renderShop() {
   });
 
   if (privacyInfoLine) {
-    privacyInfoLine.textContent = `Door verder te gaan verwerk je persoonsgegevens voor accountbeheer en orderafhandeling. Contact: ${PRIVACY_CONTACT_EMAIL}.`;
+    privacyInfoLine.textContent = `By continuing, you agree to personal data processing for account management and order handling. Contact: ${PRIVACY_CONTACT_EMAIL}.`;
   }
 
   downloadMyDataBtn?.addEventListener("click", () => {
     if (!state.currentUser) {
-      alert("Log eerst in.");
+      alert("Log in first.");
       return;
     }
 
@@ -1279,16 +1339,16 @@ function renderShop() {
 
   deleteMyDataBtn?.addEventListener("click", () => {
     if (!state.currentUser) {
-      alert("Log eerst in.");
+      alert("Log in first.");
       return;
     }
 
     if (state.currentUser.isAdmin) {
-      alert("Admin-account kan niet via self-service verwijderd worden.");
+      alert("Admin account cannot be deleted via self-service.");
       return;
     }
 
-    if (!confirm("Wil je je account en gekoppelde orderdata definitief verwijderen?")) return;
+    if (!confirm("Do you want to permanently delete your account and linked order data?")) return;
 
     const userEmail = normalizeEmail(state.currentUser.email);
     const userName = state.currentUser.username;
@@ -1306,7 +1366,7 @@ function renderShop() {
     updateAuthUi();
     renderCustomerOrders();
     toggle("authModal", false);
-    alert("Je account en data zijn verwijderd.");
+    alert("Your account and data have been deleted.");
   });
 
   document.getElementById("checkoutForm").addEventListener("submit", (e) => {
