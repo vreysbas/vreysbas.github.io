@@ -1032,11 +1032,22 @@ function renderShop() {
 
       const payload = await response.json();
       const live = normalizeTrackingStatusPayload(payload);
+      const reachedFullDelivery = (live.total > 0 && live.delivered >= live.total) || live.percent >= 100;
+      const canAutoComplete = !["cancelled", "dispute"].includes(String(order.orderStatus || "").toLowerCase());
+      let autoCompleted = false;
+
+      if (reachedFullDelivery && canAutoComplete && order.orderStatus !== "completed") {
+        order.orderStatus = "completed";
+        autoCompleted = true;
+        saveState();
+      }
+
       const statusText = [
         `Status: ${live.status}`,
         `Delivered: ${live.delivered} / ${live.total}`,
         `Progress: ${live.percent.toFixed(1)}%`,
-        live.lastActivity ? `Last update: ${live.lastActivity}` : ""
+        live.lastActivity ? `Last update: ${live.lastActivity}` : "",
+        autoCompleted ? "Order auto-updated to completed." : ""
       ].filter(Boolean).join(" | ");
 
       trackingStateByOrderId.set(orderKey, statusText);
