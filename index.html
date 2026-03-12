@@ -95,6 +95,10 @@
           <input type="checkbox" name="noRefundAck" required>
           Ik begrijp dat foutieve betalingen niet terugbetaald worden.
         </label>
+        <label class="checkbox-line">
+          <input type="checkbox" name="privacyConsentCheckout" required>
+          Ik geef toestemming voor verwerking van mijn gegevens voor orderafhandeling.
+        </label>
         <button type="submit" class="primary-btn">Order aanmaken</button>
         <p id="checkoutStatus" class="small-line"></p>
         <div id="manualPaymentInstructions" class="paypal-section hidden">
@@ -149,9 +153,18 @@
         <label>Password
           <input type="password" name="password" required>
         </label>
+        <label class="checkbox-line">
+          <input type="checkbox" name="privacyConsentRegister" required>
+          Ik geef toestemming voor verwerking van mijn accountgegevens.
+        </label>
         <button type="submit" class="primary-btn">Account aanmaken</button>
       </form>
 
+      <p id="privacyInfoLine" class="small-line"></p>
+      <div class="actions-row">
+        <button id="downloadMyDataBtn" type="button" class="ghost-btn hidden">Download mijn data</button>
+        <button id="deleteMyDataBtn" type="button" class="ghost-btn danger-btn hidden">Verwijder mijn account + data</button>
+      </div>
       <p id="authError" class="error-text"></p>
     </div>
   </section>

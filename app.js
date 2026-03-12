@@ -74,6 +74,10 @@ const SENSITIVE_FIELD_PATTERN = /\b(password|wachtwoord|backup\s*codes?|2fa|auth
 const ALLOWED_FIELD_TYPES = new Set(["text", "email", "textarea"]);
 const ALLOWED_VALIDATIONS = new Set(["none", "email", "containsAt", "min2", "min6"]);
 const CORE_FIELD_IDS = new Set(["fullName", "eafcTag", "extraInfo2"]);
+const PRIVACY_POLICY_VERSION = "2026-03-12";
+const ORDER_RETENTION_DAYS = 180;
+const PRIVACY_CONTACT_EMAIL = "congaxd@gmail.com";
+const ORDER_FINAL_STATUSES = new Set(["completed", "cancelled", "delivered"]);
 
 async function hashPassword(plain) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("eafc26hub:" + plain));
@@ -82,6 +86,43 @@ async function hashPassword(plain) {
 
 function isHashed(val) {
   return typeof val === "string" && /^[0-9a-f]{64}$/.test(val);
+}
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function setPrivacyConsent(scope) {
+  const consents = JSON.parse(localStorage.getItem("privacyConsents") || "{}");
+  consents[scope] = {
+    version: PRIVACY_POLICY_VERSION,
+    acceptedAt: new Date().toISOString()
+  };
+  localStorage.setItem("privacyConsents", JSON.stringify(consents));
+}
+
+function downloadJsonFile(fileName, payload) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function applyRetentionPolicy() {
+  const cutoff = Date.now() - ORDER_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const before = state.orders.length;
+
+  state.orders = state.orders.filter((order) => {
+    const ts = Date.parse(order.createdAt || "");
+    if (!Number.isFinite(ts)) return true;
+    if (ts >= cutoff) return true;
+    return !ORDER_FINAL_STATUSES.has(order.orderStatus);
+  });
+
+  return state.orders.length !== before;
 }
 
 function getDefaultFieldById(fieldId) {
@@ -341,7 +382,7 @@ async function ensureDefaultAdminAccount() {
       isAdmin: true,
       createdAt: new Date().toISOString()
     });
-  } else {
+  } else if (!isHashed(state.accounts[adminIndex].password)) {
     state.accounts[adminIndex].password = hashed;
   }
 }
@@ -486,6 +527,9 @@ function renderShop() {
   const openAuthBtn = document.getElementById("openAuthBtn");
   const logoutBtn = document.getElementById("logoutBtn");
   const authError = document.getElementById("authError");
+  const downloadMyDataBtn = document.getElementById("downloadMyDataBtn");
+  const deleteMyDataBtn = document.getElementById("deleteMyDataBtn");
+  const privacyInfoLine = document.getElementById("privacyInfoLine");
   let pendingOrderAction = null;
   let latestCheckoutOrderId = null;
 
@@ -495,6 +539,8 @@ function renderShop() {
     adminTabLink.classList.toggle("hidden", !isAdmin);
     openAuthBtn.classList.toggle("hidden", loggedIn);
     logoutBtn.classList.toggle("hidden", !loggedIn);
+    downloadMyDataBtn?.classList.toggle("hidden", !loggedIn);
+    deleteMyDataBtn?.classList.toggle("hidden", !loggedIn || isAdmin);
     userWelcome.textContent = loggedIn
       ? `Ingelogd als ${state.currentUser.username}${isAdmin ? " (admin)" : ""}`
       : "Niet ingelogd";
@@ -566,7 +612,8 @@ function renderShop() {
   function renderCustomerOrders() {
     const storedOrderIds = getStoredCustomerOrderIds();
     const orders = state.orders.filter((order) => {
-      const matchesLoggedInEmail = Boolean(state.currentUser?.email) && order.email === state.currentUser.email;
+      const matchesLoggedInEmail = Boolean(state.currentUser?.email)
+        && normalizeEmail(order.email) === normalizeEmail(state.currentUser.email);
       const matchesLocalOrder = storedOrderIds.includes(order.id);
       return matchesLoggedInEmail || matchesLocalOrder;
     });
@@ -682,10 +729,11 @@ function renderShop() {
       return null;
     }
 
-    const primaryEmail = String(formData.get("fullName") || "").trim();
+    const primaryEmail = normalizeEmail(formData.get("fullName"));
     const extraField1 = String(formData.get("eafcTag") || "").trim();
     const extraField2 = String(formData.get("extraInfo2") || "").trim();
     const noRefundAck = formData.get("noRefundAck") === "on";
+    const privacyConsent = formData.get("privacyConsentCheckout") === "on";
 
     for (const field of state.checkoutConfig.fields) {
       const value = getCheckoutFieldValue(field, formData);
@@ -700,6 +748,13 @@ function renderShop() {
       alert("Je moet bevestigen dat foutieve betalingen niet terugbetaald worden.");
       return null;
     }
+
+    if (!privacyConsent) {
+      alert("Je moet privacy-toestemming geven om een bestelling te plaatsen.");
+      return null;
+    }
+
+    setPrivacyConsent("checkout");
 
     const customFields = state.checkoutConfig.fields
       .filter((field) => !["fullName", "eafcTag", "extraInfo2"].includes(field.id))
@@ -875,7 +930,7 @@ function renderShop() {
 
     state.currentUser = {
       username: account.username,
-      email: account.email,
+      email: normalizeEmail(account.email),
       isAdmin: account.isAdmin
     };
     saveState();
@@ -888,11 +943,17 @@ function renderShop() {
     e.preventDefault();
     const data = new FormData(e.target);
     const username = String(data.get("username") || "").trim();
-    const email = String(data.get("email") || "").trim();
+    const email = normalizeEmail(data.get("email"));
     const password = String(data.get("password") || "");
+    const privacyConsent = data.get("privacyConsentRegister") === "on";
 
     if (!username || !email || !password) {
       authError.textContent = "Vul alle velden in.";
+      return;
+    }
+
+    if (!privacyConsent) {
+      authError.textContent = "Je moet eerst privacy-toestemming geven.";
       return;
     }
 
@@ -912,6 +973,7 @@ function renderShop() {
 
     state.accounts.push(newAccount);
     state.currentUser = { username, email, isAdmin: false };
+    setPrivacyConsent("register");
     saveState();
     e.target.reset();
     toggle("authModal", false);
@@ -923,6 +985,70 @@ function renderShop() {
     saveState();
     updateAuthUi();
     renderCustomerOrders();
+  });
+
+  if (privacyInfoLine) {
+    privacyInfoLine.textContent = `Door verder te gaan verwerk je persoonsgegevens voor accountbeheer en orderafhandeling. Contact: ${PRIVACY_CONTACT_EMAIL}.`;
+  }
+
+  downloadMyDataBtn?.addEventListener("click", () => {
+    if (!state.currentUser) {
+      alert("Log eerst in.");
+      return;
+    }
+
+    const userEmail = normalizeEmail(state.currentUser.email);
+    const account = state.accounts.find((a) => a.username === state.currentUser.username);
+    const myOrders = state.orders.filter((o) => normalizeEmail(o.email) === userEmail);
+
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      privacyVersion: PRIVACY_POLICY_VERSION,
+      account: account
+        ? {
+          username: account.username,
+          email: normalizeEmail(account.email),
+          isAdmin: Boolean(account.isAdmin),
+          createdAt: account.createdAt
+        }
+        : null,
+      orders: myOrders,
+      customerOrderIds: getStoredCustomerOrderIds()
+    };
+
+    downloadJsonFile(`my_data_${state.currentUser.username}_${new Date().toISOString().slice(0, 10)}.json`, payload);
+  });
+
+  deleteMyDataBtn?.addEventListener("click", () => {
+    if (!state.currentUser) {
+      alert("Log eerst in.");
+      return;
+    }
+
+    if (state.currentUser.isAdmin) {
+      alert("Admin-account kan niet via self-service verwijderd worden.");
+      return;
+    }
+
+    if (!confirm("Wil je je account en gekoppelde orderdata definitief verwijderen?")) return;
+
+    const userEmail = normalizeEmail(state.currentUser.email);
+    const userName = state.currentUser.username;
+
+    state.orders = state.orders.filter((order) => {
+      const sameEmail = normalizeEmail(order.email) === userEmail;
+      const sameUser = order.username === userName;
+      return !sameEmail && !sameUser;
+    });
+    state.accounts = state.accounts.filter((account) => account.username !== userName);
+
+    localStorage.removeItem("customerOrderIds");
+    state.currentUser = null;
+    saveState();
+    updateAuthUi();
+    renderCustomerOrders();
+    toggle("authModal", false);
+    alert("Je account en data zijn verwijderd.");
   });
 
   document.getElementById("checkoutForm").addEventListener("submit", (e) => {
@@ -1490,6 +1616,7 @@ async function bootstrap() {
 
   await ensureDefaultAdminAccount();
   ensureTestProduct();
+  applyRetentionPolicy();
   saveState();
 
   if (PAGE === "shop") {

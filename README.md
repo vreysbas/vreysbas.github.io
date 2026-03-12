@@ -8,12 +8,14 @@ Static storefront with an EAFC 26-inspired theme and admin management.
 - Product management in admin (add/edit/delete manually)
 - Duidelijke manuele PayPal betaalflow met verplicht order-ID in beschrijving
 - Checkout vereist ingelogd account
-- Optionele realtime cloud sync (Firebase Firestore) voor gedeelde data op meerdere toestellen
+- Optionele realtime cloud sync (Firebase Realtime Database) voor gedeelde data op meerdere toestellen
 - Optional order email notifications via Web3Forms
+- GDPR-hulp: verplichte consent bij registratie/checkout, data-export en self-service data-verwijdering
 
 ## Default Admin
 - Username: `vreys.bas`
 - Password: `Kleerkast0428!`
+- Verander dit wachtwoord onmiddellijk na eerste login.
 
 ## Real Payment Setup (PayPal)
 1. Klant maakt eerst order aan op de checkout pagina.
@@ -29,6 +31,14 @@ Static storefront with an EAFC 26-inspired theme and admin management.
 
 Daarna delen pc/telefoon dezelfde orders, producten, accounts en checkout-config.
 
+## GDPR / Security Checklist
+1. Beperk toegang tot Firebase project tot bevoegde beheerders.
+2. Gebruik niet langer algemene open regels dan nodig (`.read/.write: true` is alleen tijdelijk voor testen).
+3. Verwerk alleen noodzakelijke persoonsgegevens; verwijder oude afgehandelde orders (retentie is ingebouwd op 180 dagen).
+4. Respecteer rechten van betrokkenen: in de app kunnen gebruikers hun data downloaden en account+data verwijderen.
+5. Gebruik een duidelijke privacytekst en contactadres voor inzage/verwijderverzoeken.
+6. Sluit een verwerkersovereenkomst af met je hosting- en mailproviders indien vereist.
+
 ## Optional Email Setup
 1. Open `email-config.js`
 2. Set your Web3Forms access key and sender fields
@@ -37,3 +47,4 @@ Daarna delen pc/telefoon dezelfde orders, producten, accounts en checkout-config
 ## Notes
 - This project is fully static and stores orders/products in browser `localStorage`.
 - Manuele betaalflow betekent dat betaling en orderkoppeling handmatig gebeuren.
+- Deze code helpt met technische maatregelen, maar juridische GDPR-compliance hangt ook af van je processen, policies en contracten.
