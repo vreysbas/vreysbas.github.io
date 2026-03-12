@@ -130,8 +130,12 @@
           <h3>Discord Bot Berichten</h3>
         </div>
         <form id="discordBroadcastForm" class="form-grid">
-          <label>Channel ID
-            <input id="discordChannelIdInput" type="text" placeholder="Bijv. 123456789012345678" required>
+          <label>Kanaal
+            <select id="discordChannelIdInput" required>
+              <option value="">Kies kanaal...</option>
+              <option value="1481592352303874138">Orders kanaal</option>
+              <option value="1481592280686268560">Algemeen kanaal</option>
+            </select>
           </label>
           <label>Bericht
             <textarea id="discordMessageInput" rows="5" placeholder="Typ je bericht voor Discord..." required></textarea>
