@@ -19,7 +19,7 @@ Static storefront with an EAFC 26-inspired theme and admin management.
 
 ## Real Payment Setup (PayPal)
 1. Klant maakt eerst order aan op de checkout pagina.
-2. Klant maakt daarna manueel over naar `congaxd@gmail.com`.
+2. Klant maakt daarna manueel over naar `congaxd.me@gmail.com`.
 3. Klant vermeldt verplicht het order-ID in de PayPal beschrijving.
 4. Admin controleert betaling handmatig en zet orderstatus op betaald.
 

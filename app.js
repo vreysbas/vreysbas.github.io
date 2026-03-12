@@ -32,13 +32,13 @@ const MAIL_CONFIG = window.MAIL_CONFIG || {
   replyTo: ""
 };
 const DEFAULT_CHECKOUT_CONFIG = {
-  paymentNote: "Betalen gebeurt manueel via PayPal naar congaxd@gmail.com met je order-ID in de beschrijving. Zo kunnen we betalingen correct koppelen.",
-  paypalEmail: "congaxd@gmail.com",
+  paymentNote: "Betalen gebeurt manueel via PayPal naar congaxd.me@gmail.com met je order-ID in de beschrijving. Zo kunnen we betalingen correct koppelen.",
+  paypalEmail: "congaxd.me@gmail.com",
   refundWarning: "Als je fout betaalt (verkeerd bedrag, verkeerde ontvanger of zonder correct order-ID), is er geen refund mogelijk.",
   instructionIntro: "Volg exact deze stappen om problemen te vermijden:",
   instructionSteps: [
     "Open PayPal en kies geld verzenden.",
-    "Stuur exact het orderbedrag naar congaxd@gmail.com.",
+    "Stuur exact het orderbedrag naar congaxd.me@gmail.com.",
     "Zet je order-ID in de beschrijving.",
     "Bij fouten in bedrag, ontvanger of beschrijving is er geen refund mogelijk.",
     "Na betaling controleren wij handmatig en zetten we je order op betaald."
@@ -76,7 +76,7 @@ const ALLOWED_VALIDATIONS = new Set(["none", "email", "containsAt", "min2", "min
 const CORE_FIELD_IDS = new Set(["fullName", "eafcTag", "extraInfo2"]);
 const PRIVACY_POLICY_VERSION = "2026-03-12";
 const ORDER_RETENTION_DAYS = 180;
-const PRIVACY_CONTACT_EMAIL = "congaxd@gmail.com";
+const PRIVACY_CONTACT_EMAIL = "congaxd.me@gmail.com";
 const ORDER_FINAL_STATUSES = new Set(["completed", "cancelled", "delivered"]);
 
 async function hashPassword(plain) {
