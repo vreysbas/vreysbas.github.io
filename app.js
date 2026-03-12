@@ -604,14 +604,18 @@ async function sendDiscordBroadcastMessage({ channelId, message, mentionEveryone
   }
 }
 
-function formatOrderDetailsLines(order) {
+function formatOrderDetailsLines(order, options = {}) {
+  const {
+    includeEafcId = true,
+    markdownOrderId = false
+  } = options;
+
   const lines = [
-    `Order-ID: ${order.id}`,
+    `Order-ID: ${markdownOrderId ? `**${order.id}**` : order.id}`,
     `Tijdstip: ${new Date(order.createdAt).toLocaleString()}`,
     `Gebruiker: ${order.username || "guest"}`,
     `Klant: ${order.fullName || "-"}`,
     `E-mail: ${order.email || "-"}`,
-    `EAFC ID: ${order.eafcTag || "-"}`,
     `Totaal: EUR ${formatMoney(order.total || 0)}`,
     `Items: ${(order.items || []).map((item) => `${item.name} (${item.qty})`).join(", ") || "-"}`,
     `Orderstatus: ${order.orderStatus || "-"}`,
@@ -619,6 +623,10 @@ function formatOrderDetailsLines(order) {
     `Betaling: ${order.paymentMethod || "-"}`,
     `Referentie: ${order.paymentReference || "-"}`
   ];
+
+  if (includeEafcId) {
+    lines.splice(5, 0, `EAFC ID: ${order.eafcTag || "-"}`);
+  }
 
   const checkoutFieldValues = Array.isArray(order.checkoutFieldValues) ? order.checkoutFieldValues : [];
   if (checkoutFieldValues.length > 0) {
@@ -1057,7 +1065,10 @@ function renderShop() {
     );
 
     const orderWebhook = getOrderNotificationWebhook();
-    const discordDetails = formatOrderDetailsLines(order).join("\n");
+    const discordDetails = formatOrderDetailsLines(order, {
+      includeEafcId: false,
+      markdownOrderId: true
+    }).join("\n");
     sendDiscordNotification({
       webhookUrl: orderWebhook,
       mentionUserId: DISCORD_CONFIG.orderMentionUserId,
