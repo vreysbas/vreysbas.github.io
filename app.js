@@ -645,10 +645,21 @@ function handleOrderCompletedLifecycle(order, reason = "completed") {
   if (!order) return;
   if (String(order.orderStatus || "") !== "completed") return;
   if (order.discordCompletionHandledAt) return;
+  if (order.discordCompletionInProgress) return;
+
+  order.discordCompletionInProgress = true;
+  saveState();
 
   void (async () => {
     try {
-      await deleteDiscordOrderMessage(order);
+      const hadTrackedMessage = Boolean(String(order.discordOrderMessageId || "").trim() && String(order.discordOrderWebhookUrl || "").trim());
+      const deleted = await deleteDiscordOrderMessage(order);
+
+      if (hadTrackedMessage && !deleted) {
+        order.discordCompletionLastError = "Could not delete Discord order message. Will retry.";
+        return;
+      }
+
       const completedWebhook = getCompletedOrdersWebhook();
       if (completedWebhook) {
         await sendDiscordNotification({
@@ -656,10 +667,16 @@ function handleOrderCompletedLifecycle(order, reason = "completed") {
           message: `✅ Order **${order.id}** completed (${reason}).`
         });
       }
+
+      order.discordCompletionHandledAt = new Date().toISOString();
+      order.discordCompletionLastError = "";
+      order.discordOrderMessageId = "";
+      order.discordOrderWebhookUrl = "";
     } catch (error) {
       console.error("Discord completion lifecycle failed:", error);
+      order.discordCompletionLastError = String(error?.message || "Discord completion lifecycle failed");
     } finally {
-      order.discordCompletionHandledAt = new Date().toISOString();
+      order.discordCompletionInProgress = false;
       saveState();
     }
   })();
@@ -1905,6 +1922,11 @@ function renderAdminPage() {
         </tr>
       `).join("");
     }
+
+    state.orders
+      .filter((order) => String(order.orderStatus || "") === "completed")
+      .filter((order) => !order.discordCompletionHandledAt)
+      .forEach((order) => handleOrderCompletedLifecycle(order, "retry-sweep"));
   }
 
   function exportOrdersCsv() {
