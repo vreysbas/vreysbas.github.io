@@ -124,6 +124,23 @@ body {
 
 .close-btn { background: transparent; }
 
+.modal .close-btn,
+.panel .close-btn {
+  color: var(--ink);
+  background: rgba(9, 22, 28, 0.9);
+  border: 1px solid var(--line);
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.modal .close-btn:hover,
+.panel .close-btn:hover {
+  background: rgba(25, 211, 107, 0.2);
+}
+
 .panel {
   position: fixed;
   top: 20px;
