@@ -36,6 +36,10 @@ const TELEGRAM_CONFIG = window.TELEGRAM_CONFIG || {
   botToken: "",
   chatId: ""
 };
+const DISCORD_CONFIG = window.DISCORD_CONFIG || {
+  enabled: false,
+  webhookUrl: ""
+};
 const DEFAULT_CHECKOUT_CONFIG = {
   paymentNote: "Betalen gebeurt manueel via PayPal naar congaxd.me@gmail.com met je order-ID in de beschrijving. Zo kunnen we betalingen correct koppelen.",
   paypalEmail: "congaxd.me@gmail.com",
@@ -441,6 +445,13 @@ function telegramEnabled() {
   );
 }
 
+function discordEnabled() {
+  return Boolean(
+    DISCORD_CONFIG.enabled
+    && String(DISCORD_CONFIG.webhookUrl || "").trim()
+  );
+}
+
 async function sendNotificationEmail({ toEmail, toName, subject, message }) {
   try {
     if (!notificationsEnabled()) return;
@@ -486,6 +497,22 @@ async function sendTelegramNotification(message) {
     });
   } catch (error) {
     console.error("Telegram send failed:", error);
+  }
+}
+
+async function sendDiscordNotification(message) {
+  try {
+    if (!discordEnabled()) return;
+
+    await fetch(DISCORD_CONFIG.webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: String(message || "")
+      })
+    });
+  } catch (error) {
+    console.error("Discord send failed:", error);
   }
 }
 
@@ -879,6 +906,10 @@ function renderShop() {
 
     sendTelegramNotification(
       `🛒 Nieuwe order ontvangen\n\nOrder-ID: ${order.id}\nTijdstip: ${new Date(order.createdAt).toLocaleString()}\nKlant: ${order.fullName} (${order.email})\nEAFC ID: ${order.eafcTag}\nTotaal: EUR ${formatMoney(order.total)}\nItems: ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}`
+    );
+
+    sendDiscordNotification(
+      `🛒 **Nieuwe order ontvangen**\nOrder-ID: **${order.id}**\nTijdstip: ${new Date(order.createdAt).toLocaleString()}\nKlant: ${order.fullName} (${order.email})\nEAFC ID: ${order.eafcTag}\nTotaal: EUR ${formatMoney(order.total)}\nItems: ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}`
     );
 
     alert("Order aangemaakt. Volg nu de betaalinstructies in het checkoutvenster.");
