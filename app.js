@@ -194,9 +194,13 @@ async function initCloud() {
     }
 
     if (window.firebase.auth) {
-      const auth = window.firebase.auth(app);
-      if (!auth.currentUser) {
-        await auth.signInAnonymously();
+      try {
+        const auth = window.firebase.auth(app);
+        if (!auth.currentUser) {
+          await auth.signInAnonymously();
+        }
+      } catch (authErr) {
+        console.warn("Anonymous auth failed, continuing without auth:", authErr.message);
       }
     }
 
