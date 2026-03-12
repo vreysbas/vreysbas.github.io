@@ -371,6 +371,14 @@ body {
   overscroll-behavior: contain;
 }
 
+#orderActionConfirmModal {
+  z-index: 60;
+}
+
+#orderActionConfirmModal {
+  z-index: 60;
+}
+
 .auth-tabs {
   display: flex;
   gap: 8px;
