@@ -299,6 +299,11 @@ body {
 .gate-card { padding: 16px; max-width: 460px; }
 .auth-card { width: min(460px, 92vw); }
 
+#checkoutModal .modal-card {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
 .auth-tabs {
   display: flex;
   gap: 8px;

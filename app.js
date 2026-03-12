@@ -524,6 +524,7 @@ function renderShop() {
   const checkoutPaidBtn = document.getElementById("checkoutPaidBtn");
   const checkoutCancelBtn = document.getElementById("checkoutCancelBtn");
   const checkoutFieldsContainer = document.getElementById("checkoutFieldsContainer");
+  const checkoutModal = document.getElementById("checkoutModal");
   const storePaymentNote = document.getElementById("storePaymentNote");
   const refundWarningText = document.getElementById("refundWarningText");
   const instructionIntro = document.getElementById("instructionIntro");
@@ -838,6 +839,14 @@ function renderShop() {
     alert("Order aangemaakt. Volg nu de betaalinstructies in het checkoutvenster.");
   }
 
+  function closeCheckoutModal() {
+    toggle("checkoutModal", false);
+    document.getElementById("checkoutForm").reset();
+    document.getElementById("checkoutStatus").textContent = "";
+    document.getElementById("manualPaymentInstructions").classList.add("hidden");
+    document.getElementById("manualPaymentSummary").textContent = "";
+  }
+
   document.addEventListener("click", (e) => {
     const add = e.target.getAttribute("data-add");
     const remove = e.target.getAttribute("data-remove");
@@ -888,12 +897,16 @@ function renderShop() {
     document.getElementById("manualPaymentInstructions").classList.add("hidden");
     document.getElementById("manualPaymentSummary").textContent = "";
   });
-  document.getElementById("closeCheckoutBtn").addEventListener("click", () => {
-    toggle("checkoutModal", false);
-    document.getElementById("checkoutForm").reset();
-    document.getElementById("checkoutStatus").textContent = "";
-    document.getElementById("manualPaymentInstructions").classList.add("hidden");
-    document.getElementById("manualPaymentSummary").textContent = "";
+  document.getElementById("closeCheckoutBtn").addEventListener("click", closeCheckoutModal);
+  checkoutModal.addEventListener("click", (e) => {
+    if (e.target === checkoutModal) {
+      closeCheckoutModal();
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !checkoutModal.classList.contains("hidden")) {
+      closeCheckoutModal();
+    }
   });
   document.getElementById("openAuthBtn").addEventListener("click", () => {
     authError.textContent = "";
