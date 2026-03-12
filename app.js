@@ -836,6 +836,15 @@ function renderShop() {
       message: `Beste ${order.fullName},\n\nBedankt voor je bestelling bij EAFC 26 Hub.\n\nBestelgegevens\n- Bestelnummer: ${order.id}\n- Datum: ${new Date(order.createdAt).toLocaleString()}\n- Totaalbedrag: EUR ${formatMoney(order.total)}\n- EAFC gebruikersnaam: ${order.eafcTag}\n- Betaalmethode: Manuele PayPal overschrijving\n\nBetaal nu naar: ${state.checkoutConfig.paypalEmail}\nVermeld verplicht dit order-ID in de beschrijving: ${order.id}\n\nRefund policy: ${state.checkoutConfig.refundWarning}\n\nNa controle zetten we je order op betaald.\n\nMet vriendelijke groeten,\nEAFC 26 Hub`
     });
 
+    if (MAIL_CONFIG.ownerEmail) {
+      sendNotificationEmail({
+        toEmail: MAIL_CONFIG.ownerEmail,
+        toName: "Admin",
+        subject: `Nieuwe order ontvangen: ${order.id}`,
+        message: `Nieuwe order binnengekomen.\n\nOrder-ID: ${order.id}\nTijdstip: ${new Date(order.createdAt).toLocaleString()}\nKlant: ${order.fullName} (${order.email})\nEAFC ID: ${order.eafcTag}\nTotaal: EUR ${formatMoney(order.total)}\nItems: ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}\n\nOpen de admin tab om de order te verwerken.`
+      });
+    }
+
     alert("Order aangemaakt. Volg nu de betaalinstructies in het checkoutvenster.");
   }
 
