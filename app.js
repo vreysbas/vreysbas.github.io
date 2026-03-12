@@ -620,17 +620,27 @@ function formatOrderDetailsLines(order) {
     `Referentie: ${order.paymentReference || "-"}`
   ];
 
-  const customFields = Array.isArray(order.customFields) ? order.customFields : [];
-  for (const field of customFields) {
-    const label = String(field?.label || field?.id || "Custom veld").trim();
-    const value = String(field?.value || "").trim();
-    if (!value) continue;
-    lines.push(`${label}: ${value}`);
+  const checkoutFieldValues = Array.isArray(order.checkoutFieldValues) ? order.checkoutFieldValues : [];
+  if (checkoutFieldValues.length > 0) {
+    lines.push("Checkout velden:");
+    for (const field of checkoutFieldValues) {
+      const label = String(field?.label || field?.id || "Veld").trim();
+      const value = String(field?.value || "").trim();
+      lines.push(`${label}: ${value || "(leeg)"}`);
+    }
+  } else {
+    const customFields = Array.isArray(order.customFields) ? order.customFields : [];
+    for (const field of customFields) {
+      const label = String(field?.label || field?.id || "Custom veld").trim();
+      const value = String(field?.value || "").trim();
+      if (!value) continue;
+      lines.push(`${label}: ${value}`);
+    }
   }
 
   const handledKeys = new Set([
     "id", "createdAt", "username", "fullName", "email", "eafcTag", "total", "items",
-    "orderStatus", "paymentStatus", "paymentMethod", "paymentReference", "customFields"
+    "orderStatus", "paymentStatus", "paymentMethod", "paymentReference", "customFields", "checkoutFieldValues"
   ]);
 
   for (const [key, value] of Object.entries(order || {})) {
@@ -939,25 +949,30 @@ function renderShop() {
 
     setPrivacyConsent("checkout");
 
-    const customFields = state.checkoutConfig.fields
+    const checkoutFieldValues = state.checkoutConfig.fields.map((field) => ({
+      id: field.id,
+      label: field.label,
+      value: getCheckoutFieldValue(field, formData)
+    }));
+
+    const customFields = checkoutFieldValues
       .filter((field) => !["fullName", "eafcTag", "extraInfo2"].includes(field.id))
-      .map((field) => ({
-        id: field.id,
-        label: field.label,
-        value: getCheckoutFieldValue(field, formData)
-      }))
-      .filter((field) => field.value);
+      .filter((field) => String(field.value || "").trim());
+
+    const extra1Label = checkoutFieldValues.find((field) => field.id === "eafcTag")?.label || "Extra veld 1";
+    const extra2Label = checkoutFieldValues.find((field) => field.id === "extraInfo2")?.label || "Extra veld 2";
 
     customFields.unshift(
-      { id: "extraInfo1", label: "Extra veld 1", value: extraField1 },
-      { id: "extraInfo2", label: "Extra veld 2", value: extraField2 }
+      { id: "extraInfo1", label: extra1Label, value: extraField1 },
+      { id: "extraInfo2", label: extra2Label, value: extraField2 }
     );
 
     return {
       fullName: primaryEmail,
       email: primaryEmail,
       eafcTag: extraField1,
-      customFields
+      customFields,
+      checkoutFieldValues
     };
   }
 
@@ -969,7 +984,20 @@ function renderShop() {
     const instructions = document.getElementById("manualPaymentInstructions");
     const summary = document.getElementById("manualPaymentSummary");
     const total = cartTotal();
-    const orderId = generateSequentialOrderId();
+    const generatedOrderId = String(generateSequentialOrderId() || "").trim();
+    const usedIds = new Set(state.orders.map((entry) => String(entry.id || "").trim()));
+    let orderId = /^\d+$/.test(generatedOrderId)
+      ? generatedOrderId
+      : String(Math.max(0, Number.isFinite(state.orderSequence) ? Math.floor(state.orderSequence) : 0));
+
+    while (usedIds.has(orderId)) {
+      orderId = String(Number(orderId) + 1);
+    }
+
+    const numericOrderId = Number(orderId);
+    if (Number.isFinite(numericOrderId) && state.orderSequence <= numericOrderId) {
+      state.orderSequence = numericOrderId + 1;
+    }
 
     const order = {
       id: orderId,
@@ -978,6 +1006,7 @@ function renderShop() {
       email: checkoutData.email,
       eafcTag: checkoutData.eafcTag,
       customFields: checkoutData.customFields,
+      checkoutFieldValues: checkoutData.checkoutFieldValues,
       items: [...state.cart],
       total,
       orderStatus: "awaiting_payment",
