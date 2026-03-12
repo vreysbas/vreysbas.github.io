@@ -653,6 +653,20 @@ function handleOrderCompletedLifecycle(order, reason = "completed") {
   void (async () => {
     try {
       const hadTrackedMessage = Boolean(String(order.discordOrderMessageId || "").trim() && String(order.discordOrderWebhookUrl || "").trim());
+
+      if (!hadTrackedMessage) {
+        order.discordCompletionLastError = "No Discord message ID stored for this order (likely older order). Auto-delete is not possible.";
+        const completedWebhook = getCompletedOrdersWebhook();
+        if (completedWebhook) {
+          await sendDiscordNotification({
+            webhookUrl: completedWebhook,
+            message: `✅ Order **${order.id}** completed (${reason}) — original order message not linked, so it was not auto-removed.`
+          });
+        }
+        order.discordCompletionHandledAt = new Date().toISOString();
+        return;
+      }
+
       const deleted = await deleteDiscordOrderMessage(order);
 
       if (hadTrackedMessage && !deleted) {
@@ -1866,6 +1880,8 @@ function renderAdminPage() {
           </td>
           <td>
             <textarea rows="3" data-order-note="${o.id}" placeholder="Interne notitie voor dit order...">${escapeHtml(o.adminNote || "")}</textarea>
+            <p class="small-line">Discord message linked: ${o.discordOrderMessageId ? "yes" : "no"}</p>
+            ${o.discordCompletionLastError ? `<p class="small-line" style="color: var(--danger)">${escapeHtml(o.discordCompletionLastError)}</p>` : ""}
           </td>
           <td>${new Date(o.createdAt).toLocaleString()}</td>
           <td>
