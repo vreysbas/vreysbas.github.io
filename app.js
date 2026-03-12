@@ -406,6 +406,27 @@ function getCurrentAccount() {
   return state.accounts.find((account) => account.username === state.currentUser.username) || null;
 }
 
+function normalizeUsername(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function findAccountByUsername(username) {
+  const key = normalizeUsername(username);
+  if (!key) return null;
+  return state.accounts.find((account) => normalizeUsername(account.username) === key) || null;
+}
+
+function isUsernameTaken(username, excludeUsername = "") {
+  const key = normalizeUsername(username);
+  const excludeKey = normalizeUsername(excludeUsername);
+  if (!key) return false;
+  return state.accounts.some((account) => {
+    const accountKey = normalizeUsername(account.username);
+    if (excludeKey && accountKey === excludeKey) return false;
+    return accountKey === key;
+  });
+}
+
 function awardPointsForOrder(order, reason = "paid") {
   if (!order || order.pointsAwardedAt) return;
   const account = state.accounts.find((entry) => {
@@ -1663,7 +1684,7 @@ function renderShop() {
       return;
     }
 
-    if (state.accounts.some((a) => a.username.toLowerCase() === username.toLowerCase())) {
+    if (isUsernameTaken(username)) {
       authError.textContent = "Username already exists.";
       return;
     }
@@ -1857,6 +1878,10 @@ function renderAdminPage() {
   const productsTableBody = document.getElementById("productsTableBody");
   const orderSearchInput = document.getElementById("orderSearchInput");
   const paymentStatusFilter = document.getElementById("paymentStatusFilter");
+    const grantCreditForm = document.getElementById("grantCreditForm");
+    const grantCreditUsername = document.getElementById("grantCreditUsername");
+    const grantCreditAmount = document.getElementById("grantCreditAmount");
+    const grantCreditStatus = document.getElementById("grantCreditStatus");
     const discordBroadcastForm = document.getElementById("discordBroadcastForm");
     const discordChannelIdInput = document.getElementById("discordChannelIdInput");
     const discordMessageInput = document.getElementById("discordMessageInput");
@@ -2093,7 +2118,7 @@ function renderAdminPage() {
     }
 
     if (state.accounts.length === 0) {
-      accountsTableBody.innerHTML = "<tr><td colspan='5'>Nog geen accounts.</td></tr>";
+      accountsTableBody.innerHTML = "<tr><td colspan='7'>Nog geen accounts.</td></tr>";
     } else {
       accountsTableBody.innerHTML = state.accounts.map((a, idx) => `
         <tr>
@@ -2101,6 +2126,8 @@ function renderAdminPage() {
           <td>${a.username}</td>
           <td>${a.email || "-"}</td>
           <td>${a.isAdmin ? "admin" : "user"}</td>
+          <td>${Math.max(0, Number(a.points || 0))}</td>
+          <td>${formatMoney(a.creditBalanceEur || 0)}</td>
           <td>${new Date(a.createdAt).toLocaleString()}</td>
         </tr>
       `).join("");
@@ -2165,12 +2192,14 @@ function renderAdminPage() {
   }
 
   function exportAccountsCsv() {
-    const headers = ["Nr", "Username", "Email", "Role", "CreatedAt"];
+    const headers = ["Nr", "Username", "Email", "Role", "Points", "CreditEUR", "CreatedAt"];
     const rows = state.accounts.map((a, idx) => [
       idx + 1,
       a.username,
       a.email || "",
       a.isAdmin ? "admin" : "user",
+      Math.max(0, Number(a.points || 0)),
+      formatMoney(a.creditBalanceEur || 0),
       new Date(a.createdAt).toLocaleString()
     ]);
 
@@ -2215,6 +2244,30 @@ function renderAdminPage() {
 
   document.getElementById("exportOrdersBtn").addEventListener("click", exportOrdersCsv);
   document.getElementById("exportAccountsBtn").addEventListener("click", exportAccountsCsv);
+  grantCreditForm?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const username = String(grantCreditUsername?.value || "").trim();
+    const amount = Number(grantCreditAmount?.value || 0);
+
+    if (!username || !Number.isFinite(amount) || amount <= 0) {
+      if (grantCreditStatus) grantCreditStatus.textContent = "Vul geldige username en bedrag in.";
+      return;
+    }
+
+    const account = findAccountByUsername(username);
+    if (!account) {
+      if (grantCreditStatus) grantCreditStatus.textContent = "Gebruiker niet gevonden.";
+      return;
+    }
+
+    account.creditBalanceEur = Number((Number(account.creditBalanceEur || 0) + amount).toFixed(2));
+    saveState();
+    renderAdminData();
+    if (grantCreditStatus) {
+      grantCreditStatus.textContent = `EUR ${formatMoney(amount)} credit toegevoegd aan ${account.username}.`;
+    }
+    if (grantCreditAmount) grantCreditAmount.value = "";
+  });
   discordBroadcastForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
 
