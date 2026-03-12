@@ -161,6 +161,202 @@ function downloadJsonFile(fileName, payload) {
   URL.revokeObjectURL(url);
 }
 
+let siteToastTimer = null;
+
+function getOrCreateSiteToast() {
+  let toast = document.getElementById("siteToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "siteToast";
+    toast.className = "site-toast hidden";
+    document.body.appendChild(toast);
+  }
+  return toast;
+}
+
+function showSiteToastMessage(message, timeout = 4200) {
+  const toast = getOrCreateSiteToast();
+  toast.textContent = String(message || "");
+  toast.classList.remove("hidden");
+  if (siteToastTimer) {
+    clearTimeout(siteToastTimer);
+  }
+  siteToastTimer = setTimeout(() => {
+    toast.classList.add("hidden");
+    siteToastTimer = null;
+  }, timeout);
+}
+
+let activeSiteDialogResolver = null;
+let activeSiteDialogEscHandler = null;
+
+function getOrCreateSiteDialog() {
+  let modal = document.getElementById("siteDialogModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "siteDialogModal";
+    modal.className = "modal hidden";
+    modal.innerHTML = `
+      <div class="glass modal-card site-dialog-card" role="dialog" aria-modal="true" aria-labelledby="siteDialogTitle">
+        <h3 id="siteDialogTitle">Melding</h3>
+        <p id="siteDialogMessage" class="small-line"></p>
+        <div id="siteDialogInputWrap" class="hidden">
+          <input id="siteDialogInput" type="text" autocomplete="off">
+        </div>
+        <div class="actions-row">
+          <button id="siteDialogCancelBtn" type="button" class="ghost-btn">Annuleren</button>
+          <button id="siteDialogConfirmBtn" type="button" class="primary-btn">OK</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  return {
+    modal,
+    title: document.getElementById("siteDialogTitle"),
+    message: document.getElementById("siteDialogMessage"),
+    inputWrap: document.getElementById("siteDialogInputWrap"),
+    input: document.getElementById("siteDialogInput"),
+    cancelBtn: document.getElementById("siteDialogCancelBtn"),
+    confirmBtn: document.getElementById("siteDialogConfirmBtn")
+  };
+}
+
+function openSiteDialog(options = {}) {
+  const {
+    title = "Melding",
+    message = "",
+    mode = "alert",
+    confirmText = "OK",
+    cancelText = "Annuleren",
+    defaultValue = "",
+    placeholder = "",
+    inputType = "text"
+  } = options;
+
+  const ui = getOrCreateSiteDialog();
+
+  if (typeof activeSiteDialogResolver === "function") {
+    activeSiteDialogResolver({ confirmed: false, value: null });
+    activeSiteDialogResolver = null;
+  }
+
+  ui.title.textContent = String(title);
+  ui.message.textContent = String(message);
+  ui.confirmBtn.textContent = String(confirmText);
+  ui.cancelBtn.textContent = String(cancelText);
+
+  const isPrompt = mode === "prompt";
+  const isConfirm = mode === "confirm";
+
+  ui.inputWrap.classList.toggle("hidden", !isPrompt);
+  ui.cancelBtn.classList.toggle("hidden", !isPrompt && !isConfirm);
+  ui.input.value = isPrompt ? String(defaultValue || "") : "";
+  ui.input.placeholder = isPrompt ? String(placeholder || "") : "";
+  ui.input.type = isPrompt ? String(inputType || "text") : "text";
+
+  ui.modal.classList.remove("hidden");
+
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const cleanup = () => {
+      ui.modal.classList.add("hidden");
+      ui.confirmBtn.onclick = null;
+      ui.cancelBtn.onclick = null;
+      ui.modal.onclick = null;
+      if (activeSiteDialogEscHandler) {
+        document.removeEventListener("keydown", activeSiteDialogEscHandler);
+        activeSiteDialogEscHandler = null;
+      }
+      activeSiteDialogResolver = null;
+    };
+
+    const finish = (confirmed) => {
+      if (settled) return;
+      settled = true;
+      const value = isPrompt ? String(ui.input.value || "") : null;
+      cleanup();
+      resolve({ confirmed, value });
+    };
+
+    activeSiteDialogResolver = ({ confirmed, value }) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve({ confirmed, value });
+    };
+
+    ui.confirmBtn.onclick = () => finish(true);
+    ui.cancelBtn.onclick = () => finish(false);
+    ui.modal.onclick = (event) => {
+      if (event.target === ui.modal) {
+        finish(false);
+      }
+    };
+
+    activeSiteDialogEscHandler = (event) => {
+      if (event.key === "Escape") {
+        finish(false);
+      }
+      if (event.key === "Enter" && isPrompt) {
+        finish(true);
+      }
+    };
+    document.addEventListener("keydown", activeSiteDialogEscHandler);
+
+    if (isPrompt) {
+      ui.input.focus();
+      ui.input.select();
+    } else {
+      ui.confirmBtn.focus();
+    }
+  });
+}
+
+async function siteAlert(message, title = "Melding") {
+  await openSiteDialog({ title, message, mode: "alert", confirmText: "OK" });
+}
+
+async function siteConfirm(message, options = {}) {
+  const {
+    title = "Bevestigen",
+    confirmText = "Bevestigen",
+    cancelText = "Annuleren"
+  } = options;
+  const result = await openSiteDialog({
+    title,
+    message,
+    mode: "confirm",
+    confirmText,
+    cancelText
+  });
+  return result.confirmed;
+}
+
+async function sitePrompt(message, options = {}) {
+  const {
+    title = "Invoer",
+    defaultValue = "",
+    placeholder = "",
+    confirmText = "Opslaan",
+    cancelText = "Annuleren",
+    inputType = "text"
+  } = options;
+  const result = await openSiteDialog({
+    title,
+    message,
+    mode: "prompt",
+    defaultValue,
+    placeholder,
+    confirmText,
+    cancelText,
+    inputType
+  });
+  return result.confirmed ? String(result.value || "") : null;
+}
+
 function applyRetentionPolicy() {
   const cutoff = Date.now() - ORDER_RETENTION_DAYS * 24 * 60 * 60 * 1000;
   const before = state.orders.length;
@@ -1177,7 +1373,7 @@ function renderShop() {
     const { silent = false } = options;
     const order = state.orders.find((entry) => String(entry.id) === String(orderId));
     if (!order) {
-      alert("Order not found.");
+      showSiteToastMessage("Order not found.");
       return;
     }
 
@@ -1296,13 +1492,13 @@ function renderShop() {
 
   function markLatestOrderAsPaidByCustomer() {
     if (!latestCheckoutOrderId) {
-      alert("Create an order first before pressing I paid.");
+      showSiteToastMessage("Create an order first before pressing I paid.");
       return;
     }
 
     const order = state.orders.find((x) => x.id === latestCheckoutOrderId);
     if (!order) {
-      alert("Order not found.");
+      showSiteToastMessage("Order not found.");
       return;
     }
 
@@ -1316,7 +1512,7 @@ function renderShop() {
     toggle("checkoutModal", false);
     renderCustomerOrders();
     toggle("ordersPanel", true);
-    alert("Payment reported. Your order is now in payment_review.");
+    showSiteToastMessage("Payment reported. Your order is now in payment_review.");
   }
 
   function addToCart(productId) {
@@ -1342,7 +1538,7 @@ function renderShop() {
 
   function collectCheckoutData(formData) {
     if (state.cart.length === 0) {
-      alert("Your cart is empty.");
+      showSiteToastMessage("Your cart is empty.");
       return null;
     }
 
@@ -1356,18 +1552,18 @@ function renderShop() {
       const value = getCheckoutFieldValue(field, formData);
       const validationError = validateFieldRule(value, field);
       if (validationError) {
-        alert(validationError);
+        showSiteToastMessage(validationError);
         return null;
       }
     }
 
     if (!noRefundAck) {
-      alert("You must confirm that incorrect payments are non-refundable.");
+      showSiteToastMessage("You must confirm that incorrect payments are non-refundable.");
       return null;
     }
 
     if (!privacyConsent) {
-      alert("You must provide privacy consent to place an order.");
+      showSiteToastMessage("You must provide privacy consent to place an order.");
       return null;
     }
 
@@ -1523,7 +1719,11 @@ function renderShop() {
       saveState();
     }
 
-    alert("Order created. Follow the payment instructions in the checkout window.");
+    if (isCreditOnlyPayment) {
+      showSiteToastMessage("Order paid with credits. No PayPal payment is required.");
+    } else {
+      showSiteToastMessage("Order created. Follow the payment instructions in the checkout window.");
+    }
   }
 
   function closeCheckoutModal() {
@@ -1578,7 +1778,7 @@ function renderShop() {
   checkoutPaidBtn.addEventListener("click", markLatestOrderAsPaidByCustomer);
   checkoutCancelBtn.addEventListener("click", () => {
     if (!latestCheckoutOrderId) {
-      alert("Create an order first before pressing Cancel.");
+      showSiteToastMessage("Create an order first before pressing Cancel.");
       return;
     }
     openOrderActionConfirm("cancelled", latestCheckoutOrderId);
@@ -1781,7 +1981,7 @@ function renderShop() {
 
   downloadMyDataBtn?.addEventListener("click", () => {
     if (!state.currentUser) {
-      alert("Log in first.");
+      showSiteToastMessage("Log in first.");
       return;
     }
 
@@ -1807,18 +2007,23 @@ function renderShop() {
     downloadJsonFile(`my_data_${state.currentUser.username}_${new Date().toISOString().slice(0, 10)}.json`, payload);
   });
 
-  deleteMyDataBtn?.addEventListener("click", () => {
+  deleteMyDataBtn?.addEventListener("click", async () => {
     if (!state.currentUser) {
-      alert("Log in first.");
+      showSiteToastMessage("Log in first.");
       return;
     }
 
     if (state.currentUser.isAdmin) {
-      alert("Admin account cannot be deleted via self-service.");
+      showSiteToastMessage("Admin account cannot be deleted via self-service.");
       return;
     }
 
-    if (!confirm("Do you want to permanently delete your account and linked order data?")) return;
+    const confirmed = await siteConfirm("Do you want to permanently delete your account and linked order data?", {
+      title: "Delete account",
+      confirmText: "Delete permanently",
+      cancelText: "Keep account"
+    });
+    if (!confirmed) return;
 
     const userEmail = normalizeEmail(state.currentUser.email);
     const userName = state.currentUser.username;
@@ -1836,7 +2041,7 @@ function renderShop() {
     updateAuthUi();
     renderCustomerOrders();
     toggle("authModal", false);
-    alert("Your account and data have been deleted.");
+    showSiteToastMessage("Your account and data have been deleted.");
   });
 
   document.getElementById("checkoutForm").addEventListener("submit", (e) => {
@@ -2002,12 +2207,12 @@ function renderAdminPage() {
       });
 
       if (updatedFields.some((field) => !field.label)) {
-        alert("Elk checkout veld moet een label hebben.");
+        showSiteToastMessage("Elk checkout veld moet een label hebben.");
         return;
       }
 
       if (updatedFields.some((field) => !validateCheckoutFieldSafety(field))) {
-        alert("Een of meer checkout velden worden niet ondersteund. Kies een gewone label/placeholder.");
+        showSiteToastMessage("Een of meer checkout velden worden niet ondersteund. Kies een gewone label/placeholder.");
         return;
       }
 
@@ -2022,7 +2227,7 @@ function renderAdminPage() {
 
       saveState();
       renderCheckoutConfigEditor();
-      alert("Checkout instellingen opgeslagen.");
+      showSiteToastMessage("Checkout instellingen opgeslagen.");
     }
 
   function getFilteredOrders() {
@@ -2222,14 +2427,23 @@ function renderAdminPage() {
     window.location.href = "index.html";
   });
 
-  document.getElementById("addProductBtn").addEventListener("click", () => {
-    const name = prompt("Productnaam:");
+  document.getElementById("addProductBtn").addEventListener("click", async () => {
+    const name = await sitePrompt("Productnaam:", {
+      title: "Nieuw product",
+      placeholder: "Bijv. EAFC 26 Pro Pack",
+      confirmText: "Volgende"
+    });
     if (!name) return;
-    const priceText = prompt("Prijs in EUR (bv. 19.99):", "19.99");
+    const priceText = await sitePrompt("Prijs in EUR (bv. 19.99):", {
+      title: "Nieuw product",
+      defaultValue: "19.99",
+      placeholder: "19.99",
+      confirmText: "Toevoegen"
+    });
     if (!priceText) return;
     const price = Number(priceText);
     if (!Number.isFinite(price) || price <= 0) {
-      alert("Ongeldige prijs.");
+      showSiteToastMessage("Ongeldige prijs.");
       return;
     }
 
@@ -2362,7 +2576,7 @@ function renderAdminPage() {
   orderSearchInput.addEventListener("input", renderAdminData);
   paymentStatusFilter.addEventListener("change", renderAdminData);
 
-  orderTableBody.addEventListener("click", (e) => {
+  orderTableBody.addEventListener("click", async (e) => {
     const saveOrderId = e.target.getAttribute("data-save-order");
     const cancelOrderId = e.target.getAttribute("data-cancel-order");
     const markPaidId = e.target.getAttribute("data-mark-paid");
@@ -2371,8 +2585,8 @@ function renderAdminPage() {
 
     if (copyOrderId) {
       navigator.clipboard.writeText(copyOrderId)
-        .then(() => alert(`Order-ID gekopieerd: ${copyOrderId}`))
-        .catch(() => alert(`Copy mislukt. Gebruik handmatig dit ID: ${copyOrderId}`));
+        .then(() => showSiteToastMessage(`Order-ID gekopieerd: ${copyOrderId}`))
+        .catch(() => showSiteToastMessage(`Copy mislukt. Gebruik handmatig dit ID: ${copyOrderId}`));
       return;
     }
 
@@ -2387,12 +2601,12 @@ function renderAdminPage() {
       const previousMessageId = String(order.discordOrderMessageId || "").trim();
       const rawTrackingUrl = String(trackingEl?.value || "").trim();
       if (rawTrackingUrl && !sanitizeHttpUrl(rawTrackingUrl)) {
-        alert("Tracking URL must be a valid http(s) link.");
+        showSiteToastMessage("Tracking URL must be a valid http(s) link.");
         return;
       }
       const rawDiscordMessageId = String(discordMessageIdEl?.value || "").trim();
       if (rawDiscordMessageId && !/^\d{17,20}$/.test(rawDiscordMessageId)) {
-        alert("Discord message ID must be numeric (17-20 digits).");
+        showSiteToastMessage("Discord message ID must be numeric (17-20 digits).");
         return;
       }
       order.orderStatus = selectEl.value;
@@ -2445,7 +2659,12 @@ function renderAdminPage() {
     if (deleteOrderId) {
       const order = state.orders.find((o) => o.id === deleteOrderId);
       if (!order) return;
-      if (!confirm(`Verwijder order ${deleteOrderId} definitief uit het systeem?`)) {
+      const confirmed = await siteConfirm(`Verwijder order ${deleteOrderId} definitief uit het systeem?`, {
+        title: "Order verwijderen",
+        confirmText: "Verwijderen",
+        cancelText: "Annuleren"
+      });
+      if (!confirmed) {
         return;
       }
       state.orders = state.orders.filter((o) => o.id !== deleteOrderId);
@@ -2454,20 +2673,28 @@ function renderAdminPage() {
     }
   });
 
-  productsTableBody.addEventListener("click", (e) => {
+  productsTableBody.addEventListener("click", async (e) => {
     const editId = Number(e.target.getAttribute("data-edit-product"));
     const deleteId = Number(e.target.getAttribute("data-delete-product"));
 
     if (editId) {
       const product = state.products.find((p) => p.id === editId);
       if (!product) return;
-      const newName = prompt("Nieuwe naam:", product.name);
+      const newName = await sitePrompt("Nieuwe naam:", {
+        title: "Product bewerken",
+        defaultValue: product.name,
+        confirmText: "Volgende"
+      });
       if (!newName) return;
-      const newPriceText = prompt("Nieuwe prijs (EUR):", String(product.price));
+      const newPriceText = await sitePrompt("Nieuwe prijs (EUR):", {
+        title: "Product bewerken",
+        defaultValue: String(product.price),
+        confirmText: "Opslaan"
+      });
       if (!newPriceText) return;
       const newPrice = Number(newPriceText);
       if (!Number.isFinite(newPrice) || newPrice <= 0) {
-        alert("Ongeldige prijs.");
+        showSiteToastMessage("Ongeldige prijs.");
         return;
       }
       product.name = newName.trim();

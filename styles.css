@@ -397,6 +397,20 @@ input, textarea, select {
 
 .error-text { color: #9d2a2a; min-height: 22px; }
 
+.site-toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 120;
+  max-width: min(420px, 92vw);
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: linear-gradient(140deg, rgba(10, 35, 27, 0.96), rgba(8, 15, 20, 0.96));
+  color: var(--ink);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
+}
+
 .admin-header {
   display: flex;
   justify-content: space-between;
