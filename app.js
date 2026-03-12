@@ -41,6 +41,7 @@ const DISCORD_CONFIG = window.DISCORD_CONFIG || {
   webhookUrl: "",
   botDisplayName: "EAFC 26 Bot",
   orderNotificationChannelId: "",
+  completedOrdersChannelId: "",
   orderMentionUserId: "",
   broadcastChannels: {}
 };
@@ -529,6 +530,21 @@ function getOrderNotificationWebhook() {
   return String(DISCORD_CONFIG.webhookUrl || "").trim();
 }
 
+function getCompletedOrdersWebhook() {
+  const channelId = String(DISCORD_CONFIG.completedOrdersChannelId || "").trim();
+  if (channelId) {
+    return getDiscordBroadcastWebhook(channelId);
+  }
+  return "";
+}
+
+function extractWebhookParts(webhookUrl) {
+  const raw = String(webhookUrl || "").trim();
+  const match = raw.match(/\/api\/webhooks\/([^/]+)\/([^/?#]+)/i);
+  if (!match) return null;
+  return { webhookId: match[1], webhookToken: match[2] };
+}
+
 async function sendNotificationEmail({ toEmail, toName, subject, message }) {
   try {
     if (!notificationsEnabled()) return;
@@ -587,7 +603,7 @@ async function sendDiscordNotification({ message, webhookUrl, mentionUserId }) {
     const mentionPrefix = mentionUserId ? `<@${mentionUserId}> ` : "";
     const content = `${mentionPrefix}${String(message || "")}`.trim();
 
-    await fetch(targetWebhook, {
+    const response = await fetch(`${targetWebhook}${targetWebhook.includes("?") ? "&" : "?"}wait=true`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -595,9 +611,58 @@ async function sendDiscordNotification({ message, webhookUrl, mentionUserId }) {
         allowed_mentions: mentionUserId ? { users: [String(mentionUserId)] } : { parse: [] }
       })
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Discord send failed (${response.status}): ${errorText || "unknown"}`);
+    }
+
+    const payload = await response.json().catch(() => null);
+    return {
+      messageId: String(payload?.id || "").trim(),
+      webhookUrl: targetWebhook
+    };
   } catch (error) {
     console.error("Discord send failed:", error);
+    return null;
   }
+}
+
+async function deleteDiscordOrderMessage(order) {
+  const messageId = String(order?.discordOrderMessageId || "").trim();
+  const webhookUrl = String(order?.discordOrderWebhookUrl || "").trim();
+  if (!messageId || !webhookUrl) return false;
+
+  const parts = extractWebhookParts(webhookUrl);
+  if (!parts) return false;
+
+  const endpoint = `https://discord.com/api/webhooks/${parts.webhookId}/${parts.webhookToken}/messages/${encodeURIComponent(messageId)}`;
+  const response = await fetch(endpoint, { method: "DELETE" });
+  return response.ok;
+}
+
+function handleOrderCompletedLifecycle(order, reason = "completed") {
+  if (!order) return;
+  if (String(order.orderStatus || "") !== "completed") return;
+  if (order.discordCompletionHandledAt) return;
+
+  void (async () => {
+    try {
+      await deleteDiscordOrderMessage(order);
+      const completedWebhook = getCompletedOrdersWebhook();
+      if (completedWebhook) {
+        await sendDiscordNotification({
+          webhookUrl: completedWebhook,
+          message: `✅ Order **${order.id}** completed (${reason}).`
+        });
+      }
+    } catch (error) {
+      console.error("Discord completion lifecycle failed:", error);
+    } finally {
+      order.discordCompletionHandledAt = new Date().toISOString();
+      saveState();
+    }
+  })();
 }
 
 async function sendDiscordBroadcastMessage({ channelId, message, mentionEveryone }) {
@@ -1040,6 +1105,7 @@ function renderShop() {
         order.orderStatus = "completed";
         autoCompleted = true;
         saveState();
+        handleOrderCompletedLifecycle(order, "live-tracking");
       }
 
       const statusText = [
@@ -1288,11 +1354,17 @@ function renderShop() {
       includeEafcId: false,
       markdownOrderId: true
     }).join("\n");
-    sendDiscordNotification({
+    const discordMessage = await sendDiscordNotification({
       webhookUrl: orderWebhook,
       mentionUserId: DISCORD_CONFIG.orderMentionUserId,
       message: `🛒 **Nieuwe order ontvangen**\n${discordDetails}`
     });
+
+    if (discordMessage?.messageId) {
+      order.discordOrderMessageId = discordMessage.messageId;
+      order.discordOrderWebhookUrl = discordMessage.webhookUrl;
+      saveState();
+    }
 
     alert("Order created. Follow the payment instructions in the checkout window.");
   }
@@ -2050,6 +2122,9 @@ function renderAdminPage() {
         order.paidAmount = Number(order.total || 0);
       }
       saveState();
+      if (order.orderStatus === "completed") {
+        handleOrderCompletedLifecycle(order, "admin-manual");
+      }
       renderAdminData();
       return;
     }
