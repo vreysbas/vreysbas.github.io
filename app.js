@@ -78,6 +78,8 @@ const PRIVACY_POLICY_VERSION = "2026-03-12";
 const ORDER_RETENTION_DAYS = 180;
 const PRIVACY_CONTACT_EMAIL = "congaxd.me@gmail.com";
 const ORDER_FINAL_STATUSES = new Set(["completed", "cancelled", "delivered"]);
+const LEGACY_EMAIL = "congaxd@gmail.com";
+const CURRENT_EMAIL = "congaxd.me@gmail.com";
 
 async function hashPassword(plain) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("eafc26hub:" + plain));
@@ -90,6 +92,10 @@ function isHashed(val) {
 
 function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function replaceLegacyEmailText(value) {
+  return String(value || "").replaceAll(LEGACY_EMAIL, CURRENT_EMAIL);
 }
 
 function setPrivacyConsent(scope) {
@@ -184,12 +190,12 @@ function normalizeCheckoutConfig(input) {
   );
 
   return {
-    paymentNote: String(source.paymentNote || DEFAULT_CHECKOUT_CONFIG.paymentNote),
-    paypalEmail: String(source.paypalEmail || DEFAULT_CHECKOUT_CONFIG.paypalEmail),
+    paymentNote: replaceLegacyEmailText(source.paymentNote || DEFAULT_CHECKOUT_CONFIG.paymentNote),
+    paypalEmail: replaceLegacyEmailText(source.paypalEmail || DEFAULT_CHECKOUT_CONFIG.paypalEmail),
     refundWarning: String(source.refundWarning || DEFAULT_CHECKOUT_CONFIG.refundWarning),
-    instructionIntro: String(source.instructionIntro || DEFAULT_CHECKOUT_CONFIG.instructionIntro),
+    instructionIntro: replaceLegacyEmailText(source.instructionIntro || DEFAULT_CHECKOUT_CONFIG.instructionIntro),
     instructionSteps: Array.isArray(source.instructionSteps) && source.instructionSteps.length > 0
-      ? source.instructionSteps.map((step) => String(step).trim()).filter(Boolean)
+      ? source.instructionSteps.map((step) => replaceLegacyEmailText(step).trim()).filter(Boolean)
       : [...DEFAULT_CHECKOUT_CONFIG.instructionSteps],
     fields
   };
