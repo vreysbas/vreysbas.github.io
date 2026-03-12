@@ -75,6 +75,15 @@ const ALLOWED_FIELD_TYPES = new Set(["text", "email", "textarea"]);
 const ALLOWED_VALIDATIONS = new Set(["none", "email", "containsAt", "min2", "min6"]);
 const CORE_FIELD_IDS = new Set(["fullName", "eafcTag", "extraInfo2"]);
 
+async function hashPassword(plain) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("eafc26hub:" + plain));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function isHashed(val) {
+  return typeof val === "string" && /^[0-9a-f]{64}$/.test(val);
+}
+
 function getDefaultFieldById(fieldId) {
   return DEFAULT_CHECKOUT_CONFIG.fields.find((field) => field.id === fieldId);
 }
@@ -182,6 +191,13 @@ async function initCloud() {
     if (CLOUD_CONFIG.provider === "firebase-rtdb") {
       const db = window.firebase.database(app);
       cloudState.dataRef = db.ref(CLOUD_CONFIG.path || "shopData/global");
+    }
+
+    if (window.firebase.auth) {
+      const auth = window.firebase.auth(app);
+      if (!auth.currentUser) {
+        await auth.signInAnonymously();
+      }
     }
 
     cloudState.enabled = true;
@@ -321,18 +337,19 @@ function ensureTestProduct() {
   });
 }
 
-function ensureDefaultAdminAccount() {
+async function ensureDefaultAdminAccount() {
+  const hashed = await hashPassword(ADMIN_PASS);
   const adminIndex = state.accounts.findIndex((a) => a.username === ADMIN_USER && a.isAdmin);
   if (adminIndex === -1) {
     state.accounts.push({
       username: ADMIN_USER,
       email: "admin@eafc26hub.local",
-      password: ADMIN_PASS,
+      password: hashed,
       isAdmin: true,
       createdAt: new Date().toISOString()
     });
   } else {
-    state.accounts[adminIndex].password = ADMIN_PASS;
+    state.accounts[adminIndex].password = hashed;
   }
 }
 
@@ -842,16 +859,25 @@ function renderShop() {
     authError.textContent = "";
   });
 
-  document.getElementById("loginForm").addEventListener("submit", (e) => {
+  document.getElementById("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const data = new FormData(e.target);
     const username = String(data.get("username") || "").trim();
     const password = String(data.get("password") || "");
 
-    const account = state.accounts.find((a) => a.username === username && a.password === password);
+    const hashedInput = await hashPassword(password);
+    const account = state.accounts.find((a) => {
+      if (a.username !== username) return false;
+      return isHashed(a.password) ? a.password === hashedInput : a.password === password;
+    });
     if (!account) {
       authError.textContent = "Login mislukt.";
       return;
+    }
+
+    if (!isHashed(account.password)) {
+      account.password = hashedInput;
+      saveState();
     }
 
     state.currentUser = {
@@ -865,7 +891,7 @@ function renderShop() {
     updateAuthUi();
   });
 
-  document.getElementById("registerForm").addEventListener("submit", (e) => {
+  document.getElementById("registerForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const data = new FormData(e.target);
     const username = String(data.get("username") || "").trim();
@@ -882,10 +908,11 @@ function renderShop() {
       return;
     }
 
+    const hashedPassword = await hashPassword(password);
     const newAccount = {
       username,
       email,
-      password,
+      password: hashedPassword,
       isAdmin: false,
       createdAt: new Date().toISOString()
     };
@@ -1463,7 +1490,7 @@ function renderAdminPage() {
 async function bootstrap() {
   await loadStateFromCloudOnce();
 
-  ensureDefaultAdminAccount();
+  await ensureDefaultAdminAccount();
   ensureTestProduct();
   saveState();
 
