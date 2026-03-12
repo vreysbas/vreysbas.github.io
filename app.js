@@ -111,6 +111,8 @@ const PRIVACY_CONTACT_EMAIL = "congaxd.me@gmail.com";
 const ORDER_FINAL_STATUSES = new Set(["completed", "cancelled", "delivered"]);
 const LEGACY_EMAIL = "congaxd@gmail.com";
 const CURRENT_EMAIL = "congaxd.me@gmail.com";
+const POINTS_PER_EUR = 10;
+const POINTS_TO_CREDIT_EUR = 100;
 const CUSTOMER_CURRENCIES = {
   EUR: { label: "EUR (€)", rate: 1, locale: "en-IE", currency: "EUR" },
   USD: { label: "USD ($)", rate: 1.09, locale: "en-US", currency: "USD" },
@@ -387,10 +389,44 @@ async function startCloudRealtimeSync() {
 
 state.checkoutConfig = normalizeCheckoutConfig(JSON.parse(localStorage.getItem("checkoutConfig") || "null"));
 
+function normalizeAccountRecord(account) {
+  return {
+    ...account,
+    points: Math.max(0, Number.isFinite(Number(account?.points)) ? Math.floor(Number(account.points)) : 0),
+    creditBalanceEur: Math.max(0, Number.isFinite(Number(account?.creditBalanceEur)) ? Number(Number(account.creditBalanceEur).toFixed(2)) : 0)
+  };
+}
+
+function normalizeAccountsCollection() {
+  state.accounts = (Array.isArray(state.accounts) ? state.accounts : []).map(normalizeAccountRecord);
+}
+
+function getCurrentAccount() {
+  if (!state.currentUser?.username) return null;
+  return state.accounts.find((account) => account.username === state.currentUser.username) || null;
+}
+
+function awardPointsForOrder(order, reason = "paid") {
+  if (!order || order.pointsAwardedAt) return;
+  const account = state.accounts.find((entry) => {
+    if (order.username && entry.username === order.username) return true;
+    if (order.email) return normalizeEmail(entry.email) === normalizeEmail(order.email);
+    return false;
+  });
+  if (!account) return;
+
+  const points = Math.max(0, Math.floor(Number(order.total || 0) * POINTS_PER_EUR));
+  account.points = Math.max(0, Number(account.points || 0)) + points;
+  order.pointsAwarded = points;
+  order.pointsAwardedAt = new Date().toISOString();
+  order.pointsAwardReason = reason;
+}
+
 function hydrateStateFromStorage() {
   state.cart = JSON.parse(localStorage.getItem("cart") || "[]");
   state.orders = JSON.parse(localStorage.getItem("orders") || "[]");
   state.accounts = JSON.parse(localStorage.getItem("accounts") || "[]");
+  normalizeAccountsCollection();
   state.products = JSON.parse(localStorage.getItem("products") || JSON.stringify(DEFAULT_PRODUCTS));
   state.orderSequence = Number(localStorage.getItem("orderSequence") || "0");
   state.checkoutConfig = normalizeCheckoutConfig(JSON.parse(localStorage.getItem("checkoutConfig") || "null"));
@@ -459,11 +495,15 @@ async function ensureDefaultAdminAccount() {
       email: "admin@eafc26hub.local",
       password: hashed,
       isAdmin: true,
+      points: 0,
+      creditBalanceEur: 0,
       createdAt: new Date().toISOString()
     });
   } else if (!isHashed(state.accounts[adminIndex].password)) {
     state.accounts[adminIndex].password = hashed;
   }
+
+  normalizeAccountsCollection();
 }
 
 function saveStateLocal() {
@@ -908,6 +948,17 @@ function renderShop() {
   const userWelcome = document.getElementById("userWelcome");
   const openAuthBtn = document.getElementById("openAuthBtn");
   const logoutBtn = document.getElementById("logoutBtn");
+  const openAccountBtn = document.getElementById("openAccountBtn");
+  const accountModal = document.getElementById("accountModal");
+  const accountUsername = document.getElementById("accountUsername");
+  const accountEmail = document.getElementById("accountEmail");
+  const accountPoints = document.getElementById("accountPoints");
+  const accountCredit = document.getElementById("accountCredit");
+  const accountEmailInput = document.getElementById("accountEmailInput");
+  const accountPasswordInput = document.getElementById("accountPasswordInput");
+  const accountStatus = document.getElementById("accountStatus");
+  const convertPointsBtn = document.getElementById("convertPointsBtn");
+  const accountProfileForm = document.getElementById("accountProfileForm");
   const currencySelect = document.getElementById("currencySelect");
   const authError = document.getElementById("authError");
   const downloadMyDataBtn = document.getElementById("downloadMyDataBtn");
@@ -957,14 +1008,38 @@ function renderShop() {
   function updateAuthUi() {
     const loggedIn = Boolean(state.currentUser);
     const isAdmin = Boolean(state.currentUser?.isAdmin);
+    const account = getCurrentAccount();
     adminTabLink.classList.toggle("hidden", !isAdmin);
     openAuthBtn.classList.toggle("hidden", loggedIn);
     logoutBtn.classList.toggle("hidden", !loggedIn);
+    openAccountBtn?.classList.toggle("hidden", !loggedIn || isAdmin);
     downloadMyDataBtn?.classList.toggle("hidden", !loggedIn);
     deleteMyDataBtn?.classList.toggle("hidden", !loggedIn || isAdmin);
     userWelcome.textContent = loggedIn
       ? `Logged in as ${state.currentUser.username}${isAdmin ? " (admin)" : ""}`
       : "Not logged in";
+
+    if (account) {
+      accountUsername.textContent = account.username || "-";
+      accountEmail.textContent = account.email || "-";
+      accountPoints.textContent = String(Math.max(0, Number(account.points || 0)));
+      accountCredit.textContent = formatMoney(account.creditBalanceEur || 0);
+      accountEmailInput.value = account.email || "";
+      accountPasswordInput.value = "";
+    } else {
+      accountUsername.textContent = "-";
+      accountEmail.textContent = "-";
+      accountPoints.textContent = "0";
+      accountCredit.textContent = "0.00";
+      accountEmailInput.value = "";
+      accountPasswordInput.value = "";
+    }
+  }
+
+  function closeAccountModal() {
+    toggle("accountModal", false);
+    if (accountStatus) accountStatus.textContent = "";
+    if (accountPasswordInput) accountPasswordInput.value = "";
   }
 
   function renderProducts() {
@@ -1306,7 +1381,15 @@ function renderShop() {
     const checkoutStatus = document.getElementById("checkoutStatus");
     const instructions = document.getElementById("manualPaymentInstructions");
     const summary = document.getElementById("manualPaymentSummary");
-    const total = cartTotal();
+    const totalBeforeCredit = cartTotal();
+    const account = getCurrentAccount();
+    const availableCredit = Math.max(0, Number(account?.creditBalanceEur || 0));
+    const creditUsed = Math.min(availableCredit, totalBeforeCredit);
+    const total = Number((totalBeforeCredit - creditUsed).toFixed(2));
+
+    if (account && creditUsed > 0) {
+      account.creditBalanceEur = Number((availableCredit - creditUsed).toFixed(2));
+    }
     const generatedOrderId = String(generateSequentialOrderId() || "").trim();
     const usedIds = new Set(state.orders.map((entry) => String(entry.id || "").trim()));
     let orderId = /^\d+$/.test(generatedOrderId)
@@ -1332,6 +1415,8 @@ function renderShop() {
       checkoutFieldValues: checkoutData.checkoutFieldValues,
       items: [...state.cart],
       total,
+      totalBeforeCredit,
+      creditUsed,
       orderStatus: "awaiting_payment",
       paymentMethod: "paypal-manual-transfer",
       paymentStatus: "pending",
@@ -1351,6 +1436,7 @@ function renderShop() {
     checkoutStatus.textContent = "Order created. Follow the payment steps below exactly.";
     summary.innerHTML = `
       <strong>Total in selected currency:</strong> ${formatCustomerMoney(order.total)}<br>
+      <strong>Credit used:</strong> EUR ${formatMoney(order.creditUsed || 0)}<br>
       <strong>Settlement currency:</strong> EUR ${formatMoney(order.total)}<br>
       <strong>PayPal account:</strong> ${escapeHtml(state.checkoutConfig.paypalEmail)}<br>
       <strong>Order ID for description:</strong> ${order.id}<br>
@@ -1431,6 +1517,22 @@ function renderShop() {
   document.getElementById("openOrdersBtn").addEventListener("click", () => {
     renderCustomerOrders();
     toggle("ordersPanel", true);
+  });
+  openAccountBtn?.addEventListener("click", () => {
+    const account = getCurrentAccount();
+    if (!account) {
+      authError.textContent = "Log in first.";
+      toggle("authModal", true);
+      return;
+    }
+    updateAuthUi();
+    toggle("accountModal", true);
+  });
+  document.getElementById("closeAccountBtn")?.addEventListener("click", closeAccountModal);
+  accountModal?.addEventListener("click", (e) => {
+    if (e.target === accountModal) {
+      closeAccountModal();
+    }
   });
   document.getElementById("closeOrdersBtn").addEventListener("click", () => toggle("ordersPanel", false));
   checkoutPaidBtn.addEventListener("click", markLatestOrderAsPaidByCustomer);
@@ -1553,6 +1655,8 @@ function renderShop() {
       email,
       password: hashedPassword,
       isAdmin: false,
+      points: 0,
+      creditBalanceEur: 0,
       createdAt: new Date().toISOString()
     };
 
@@ -1570,6 +1674,65 @@ function renderShop() {
     saveState();
     updateAuthUi();
     renderCustomerOrders();
+    closeAccountModal();
+  });
+
+  convertPointsBtn?.addEventListener("click", () => {
+    const account = getCurrentAccount();
+    if (!account) {
+      if (accountStatus) accountStatus.textContent = "Log in first.";
+      return;
+    }
+
+    const availablePoints = Math.max(0, Number(account.points || 0));
+    const units = Math.floor(availablePoints / POINTS_TO_CREDIT_EUR);
+    if (units <= 0) {
+      if (accountStatus) accountStatus.textContent = "You need at least 100 points to convert.";
+      return;
+    }
+
+    const convertedEur = Number(units.toFixed(2));
+    account.points = availablePoints - (units * POINTS_TO_CREDIT_EUR);
+    account.creditBalanceEur = Number((Number(account.creditBalanceEur || 0) + convertedEur).toFixed(2));
+    saveState();
+    updateAuthUi();
+    if (accountStatus) {
+      accountStatus.textContent = `Converted ${units * POINTS_TO_CREDIT_EUR} points to EUR ${formatMoney(convertedEur)} credit.`;
+    }
+  });
+
+  accountProfileForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const account = getCurrentAccount();
+    if (!account) {
+      if (accountStatus) accountStatus.textContent = "Log in first.";
+      return;
+    }
+
+    const newEmail = normalizeEmail(accountEmailInput?.value || "");
+    const newPassword = String(accountPasswordInput?.value || "");
+
+    if (!newEmail || !isValidEmail(newEmail)) {
+      if (accountStatus) accountStatus.textContent = "Please enter a valid email.";
+      return;
+    }
+
+    account.email = newEmail;
+    if (newPassword) {
+      if (newPassword.length < 6) {
+        if (accountStatus) accountStatus.textContent = "New password must be at least 6 characters.";
+        return;
+      }
+      account.password = await hashPassword(newPassword);
+    }
+
+    if (state.currentUser?.username === account.username) {
+      state.currentUser.email = newEmail;
+    }
+
+    saveState();
+    updateAuthUi();
+    if (accountStatus) accountStatus.textContent = "Profile updated.";
   });
 
   if (privacyInfoLine) {
@@ -2174,6 +2337,7 @@ function renderAdminPage() {
       if (order.orderStatus === "paid") {
         order.paymentStatus = "paid";
         order.paidAmount = Number(order.total || 0);
+        awardPointsForOrder(order, "admin-paid-status");
       }
       saveState();
       if (order.orderStatus === "completed") {
@@ -2200,6 +2364,7 @@ function renderAdminPage() {
       order.paidAmount = Number(order.total || 0);
       order.orderStatus = "paid";
       order.adminNote = String(noteEl?.value || order.adminNote || "").trim();
+      awardPointsForOrder(order, "admin-mark-paid");
       saveState();
       renderAdminData();
       return;
@@ -2282,6 +2447,9 @@ async function bootstrap() {
   await ensureDefaultAdminAccount();
   ensureTestProduct();
   applyRetentionPolicy();
+  state.orders
+    .filter((order) => String(order.paymentStatus || "") === "paid")
+    .forEach((order) => awardPointsForOrder(order, "bootstrap-backfill"));
   saveState();
 
   if (PAGE === "shop") {

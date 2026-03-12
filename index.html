@@ -23,6 +23,7 @@
       </label>
       <button id="openCartBtn" class="ghost-btn">Cart (<span id="cartCount">0</span>)</button>
       <button id="openOrdersBtn" class="ghost-btn">My orders</button>
+      <button id="openAccountBtn" class="ghost-btn hidden">Account</button>
       <a id="adminTabLink" href="admin.html" class="ghost-btn link-btn hidden">Admin Tab</a>
       <button id="openAuthBtn" class="ghost-btn">Login / Register</button>
       <button id="logoutBtn" class="ghost-btn hidden">Logout</button>
@@ -71,6 +72,36 @@
         <p class="small-line">completed: order finished</p>
       </div>
       <div id="customerOrdersList" class="orders-grid"></div>
+    </div>
+  </section>
+
+  <section id="accountModal" class="modal hidden">
+    <div class="modal-card auth-card">
+      <div class="panel-head">
+        <h3>My account</h3>
+        <button id="closeAccountBtn" class="close-btn">x</button>
+      </div>
+      <div class="order-meta">
+        <span><strong>Username:</strong> <span id="accountUsername">-</span></span>
+        <span><strong>Email:</strong> <span id="accountEmail">-</span></span>
+        <span><strong>Points:</strong> <span id="accountPoints">0</span></span>
+        <span><strong>Credit:</strong> EUR <span id="accountCredit">0.00</span></span>
+      </div>
+      <div class="actions-row">
+        <button id="convertPointsBtn" type="button" class="primary-btn">Convert points to credit</button>
+      </div>
+      <p class="small-line">Rate: EUR 1 = 10 points earned, and 100 points = EUR 1 credit.</p>
+
+      <form id="accountProfileForm" class="form-grid">
+        <label>Update email
+          <input id="accountEmailInput" type="email" placeholder="name@email.com">
+        </label>
+        <label>New password (optional)
+          <input id="accountPasswordInput" type="password" placeholder="Leave empty to keep current password">
+        </label>
+        <button type="submit" class="primary-btn">Save profile</button>
+      </form>
+      <p id="accountStatus" class="small-line"></p>
     </div>
   </section>
 
@@ -185,6 +216,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
   <script src="cloud-config.js"></script>
-  <script src="app.js?v=20260312-live-tracking"></script>
+  <script src="app.js?v=20260312-account-points"></script>
 </body>
 </html>
