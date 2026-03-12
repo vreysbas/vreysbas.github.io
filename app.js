@@ -1006,7 +1006,7 @@ function renderShop() {
     }
 
     if (!ORDER_TRACKING_CONFIG.enabled || !String(ORDER_TRACKING_CONFIG.proxyUrl || "").trim()) {
-      trackingStateByOrderId.set(orderKey, "Live status unavailable: tracking proxy is not configured yet.");
+      trackingStateByOrderId.set(orderKey, "Live status unavailable: set ORDER_TRACKING_CONFIG.proxyUrl in order-tracking-config.js.");
       trackingLoadInFlight.delete(orderKey);
       renderCustomerOrders();
       return;

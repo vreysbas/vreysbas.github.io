@@ -1,5 +1,5 @@
 window.ORDER_TRACKING_CONFIG = {
-  enabled: false,
+  enabled: true,
   proxyUrl: "",
   proxyToken: ""
 };
