@@ -40,6 +40,8 @@ const DISCORD_CONFIG = window.DISCORD_CONFIG || {
   enabled: false,
   webhookUrl: "",
   botDisplayName: "EAFC 26 Bot",
+  orderNotificationChannelId: "",
+  orderMentionUserId: "",
   broadcastChannels: {}
 };
 const DEFAULT_CHECKOUT_CONFIG = {
@@ -459,6 +461,14 @@ function getDiscordBroadcastWebhook(channelId) {
   return String(DISCORD_CONFIG.broadcastChannels[String(channelId || "").trim()] || "").trim();
 }
 
+function getOrderNotificationWebhook() {
+  const channelId = String(DISCORD_CONFIG.orderNotificationChannelId || "").trim();
+  if (channelId) {
+    return getDiscordBroadcastWebhook(channelId);
+  }
+  return String(DISCORD_CONFIG.webhookUrl || "").trim();
+}
+
 async function sendNotificationEmail({ toEmail, toName, subject, message }) {
   try {
     if (!notificationsEnabled()) return;
@@ -507,15 +517,22 @@ async function sendTelegramNotification(message) {
   }
 }
 
-async function sendDiscordNotification(message) {
+async function sendDiscordNotification({ message, webhookUrl, mentionUserId }) {
   try {
     if (!discordEnabled()) return;
 
-    await fetch(DISCORD_CONFIG.webhookUrl, {
+    const targetWebhook = String(webhookUrl || DISCORD_CONFIG.webhookUrl || "").trim();
+    if (!targetWebhook) return;
+
+    const mentionPrefix = mentionUserId ? `<@${mentionUserId}> ` : "";
+    const content = `${mentionPrefix}${String(message || "")}`.trim();
+
+    await fetch(targetWebhook, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        content: String(message || "")
+        content,
+        allowed_mentions: mentionUserId ? { users: [String(mentionUserId)] } : { parse: [] }
       })
     });
   } catch (error) {
@@ -946,9 +963,12 @@ function renderShop() {
       `🛒 Nieuwe order ontvangen\n\nOrder-ID: ${order.id}\nTijdstip: ${new Date(order.createdAt).toLocaleString()}\nKlant: ${order.fullName} (${order.email})\nEAFC ID: ${order.eafcTag}\nTotaal: EUR ${formatMoney(order.total)}\nItems: ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}`
     );
 
-    sendDiscordNotification(
-      `🛒 **Nieuwe order ontvangen**\nOrder-ID: **${order.id}**\nTijdstip: ${new Date(order.createdAt).toLocaleString()}\nKlant: ${order.fullName} (${order.email})\nEAFC ID: ${order.eafcTag}\nTotaal: EUR ${formatMoney(order.total)}\nItems: ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}`
-    );
+    const orderWebhook = getOrderNotificationWebhook();
+    sendDiscordNotification({
+      webhookUrl: orderWebhook,
+      mentionUserId: DISCORD_CONFIG.orderMentionUserId,
+      message: `🛒 **Nieuwe order ontvangen**\nOrder-ID: **${order.id}**\nTijdstip: ${new Date(order.createdAt).toLocaleString()}\nKlant: ${order.fullName} (${order.email})\nEAFC ID: ${order.eafcTag}\nTotaal: EUR ${formatMoney(order.total)}\nItems: ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}`
+    });
 
     alert("Order aangemaakt. Volg nu de betaalinstructies in het checkoutvenster.");
   }
