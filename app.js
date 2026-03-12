@@ -38,7 +38,9 @@ const TELEGRAM_CONFIG = window.TELEGRAM_CONFIG || {
 };
 const DISCORD_CONFIG = window.DISCORD_CONFIG || {
   enabled: false,
-  webhookUrl: ""
+  webhookUrl: "",
+  botDisplayName: "EAFC 26 Bot",
+  broadcastChannels: {}
 };
 const DEFAULT_CHECKOUT_CONFIG = {
   paymentNote: "Betalen gebeurt manueel via PayPal naar congaxd.me@gmail.com met je order-ID in de beschrijving. Zo kunnen we betalingen correct koppelen.",
@@ -452,6 +454,11 @@ function discordEnabled() {
   );
 }
 
+function getDiscordBroadcastWebhook(channelId) {
+  if (!DISCORD_CONFIG || typeof DISCORD_CONFIG.broadcastChannels !== "object") return "";
+  return String(DISCORD_CONFIG.broadcastChannels[String(channelId || "").trim()] || "").trim();
+}
+
 async function sendNotificationEmail({ toEmail, toName, subject, message }) {
   try {
     if (!notificationsEnabled()) return;
@@ -513,6 +520,37 @@ async function sendDiscordNotification(message) {
     });
   } catch (error) {
     console.error("Discord send failed:", error);
+  }
+}
+
+async function sendDiscordBroadcastMessage({ channelId, message, mentionEveryone }) {
+  const webhookUrl = getDiscordBroadcastWebhook(channelId);
+  if (!webhookUrl) {
+    throw new Error("Geen webhook gevonden voor dit channel ID in discord-config.js");
+  }
+
+  const content = `${mentionEveryone ? "@everyone " : ""}${String(message || "").trim()}`.trim();
+  if (!content) {
+    throw new Error("Bericht is leeg.");
+  }
+
+  const payload = {
+    content,
+    username: DISCORD_CONFIG.botDisplayName || "EAFC 26 Bot",
+    allowed_mentions: {
+      parse: mentionEveryone ? ["everyone"] : []
+    }
+  };
+
+  const response = await fetch(webhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Discord fout (${response.status}): ${errorText || "onbekend"}`);
   }
 }
 
@@ -1185,6 +1223,11 @@ function renderAdminPage() {
   const productsTableBody = document.getElementById("productsTableBody");
   const orderSearchInput = document.getElementById("orderSearchInput");
   const paymentStatusFilter = document.getElementById("paymentStatusFilter");
+    const discordBroadcastForm = document.getElementById("discordBroadcastForm");
+    const discordChannelIdInput = document.getElementById("discordChannelIdInput");
+    const discordMessageInput = document.getElementById("discordMessageInput");
+    const discordMentionEveryone = document.getElementById("discordMentionEveryone");
+    const discordBroadcastStatus = document.getElementById("discordBroadcastStatus");
     const checkoutConfigForm = document.getElementById("checkoutConfigForm");
     const configPaymentNote = document.getElementById("configPaymentNote");
     const configPaypalEmail = document.getElementById("configPaypalEmail");
@@ -1526,6 +1569,44 @@ function renderAdminPage() {
 
   document.getElementById("exportOrdersBtn").addEventListener("click", exportOrdersCsv);
   document.getElementById("exportAccountsBtn").addEventListener("click", exportAccountsCsv);
+  discordBroadcastForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const channelId = String(discordChannelIdInput?.value || "").trim();
+    const message = String(discordMessageInput?.value || "").trim();
+    const mentionEveryone = Boolean(discordMentionEveryone?.checked);
+
+    if (!channelId || !message) {
+      if (discordBroadcastStatus) {
+        discordBroadcastStatus.textContent = "Vul channel ID en bericht in.";
+      }
+      return;
+    }
+
+    if (!/^\d{17,20}$/.test(channelId)) {
+      if (discordBroadcastStatus) {
+        discordBroadcastStatus.textContent = "Ongeldig channel ID formaat.";
+      }
+      return;
+    }
+
+    if (discordBroadcastStatus) {
+      discordBroadcastStatus.textContent = "Versturen...";
+    }
+
+    try {
+      await sendDiscordBroadcastMessage({ channelId, message, mentionEveryone });
+      if (discordBroadcastStatus) {
+        discordBroadcastStatus.textContent = "Bericht succesvol verstuurd naar Discord.";
+      }
+      discordMessageInput.value = "";
+      discordMentionEveryone.checked = false;
+    } catch (error) {
+      if (discordBroadcastStatus) {
+        discordBroadcastStatus.textContent = `Versturen mislukt: ${error.message}`;
+      }
+    }
+  });
   document.getElementById("addCheckoutFieldBtn").addEventListener("click", () => {
     state.checkoutConfig.fields.push({
       id: `custom_${Date.now()}`,

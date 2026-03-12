@@ -39,6 +39,7 @@
       <div class="admin-quicknav">
         <a href="#ordersSection" class="ghost-btn link-btn">Naar orders</a>
         <a href="#checkoutBuilderSection" class="ghost-btn link-btn">Naar checkout builder</a>
+        <a href="#discordBroadcastSection" class="ghost-btn link-btn">Naar Discord bot</a>
         <a href="#productsSection" class="ghost-btn link-btn">Naar producten</a>
       </div>
 
@@ -122,6 +123,26 @@
             <tbody id="accountsTableBody"></tbody>
           </table>
         </div>
+      </article>
+
+      <article id="discordBroadcastSection" class="table-card">
+        <div class="admin-header compact">
+          <h3>Discord Bot Berichten</h3>
+        </div>
+        <form id="discordBroadcastForm" class="form-grid">
+          <label>Channel ID
+            <input id="discordChannelIdInput" type="text" placeholder="Bijv. 123456789012345678" required>
+          </label>
+          <label>Bericht
+            <textarea id="discordMessageInput" rows="5" placeholder="Typ je bericht voor Discord..." required></textarea>
+          </label>
+          <label class="checkbox-line">
+            <input id="discordMentionEveryone" type="checkbox">
+            Voeg @everyone toe
+          </label>
+          <button type="submit" class="primary-btn">Verstuur naar Discord</button>
+          <p id="discordBroadcastStatus" class="small-line"></p>
+        </form>
       </article>
 
       <article class="table-card">
