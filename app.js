@@ -44,6 +44,11 @@ const DISCORD_CONFIG = window.DISCORD_CONFIG || {
   orderMentionUserId: "",
   broadcastChannels: {}
 };
+const ORDER_TRACKING_CONFIG = window.ORDER_TRACKING_CONFIG || {
+  enabled: false,
+  proxyUrl: "",
+  proxyToken: ""
+};
 const DEFAULT_CHECKOUT_CONFIG = {
   paymentNote: "Payments are handled manually via PayPal to congaxd.me@gmail.com. Always include your order ID in the description so we can match your payment.",
   paypalEmail: "congaxd.me@gmail.com",
@@ -705,6 +710,64 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+function getOrderTrackingCode(value) {
+  const input = String(value || "").trim();
+  if (!input) return "";
+
+  if (/^[a-zA-Z0-9_-]{6,}$/.test(input) && !input.includes("http")) {
+    return input;
+  }
+
+  try {
+    const url = new URL(input);
+    const code = String(url.searchParams.get("code") || "").trim();
+    if (code) return code;
+  } catch (_) {
+    // ignore parse errors
+  }
+
+  return "";
+}
+
+function sanitizeHttpUrl(value) {
+  const input = String(value || "").trim();
+  if (!input) return "";
+
+  try {
+    const url = new URL(input);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return "";
+    }
+    return url.toString();
+  } catch (_) {
+    return "";
+  }
+}
+
+function normalizeTrackingStatusPayload(payload) {
+  const source = Array.isArray(payload)
+    ? payload[0]
+    : (Array.isArray(payload?.data) ? payload.data[0] : payload);
+
+  if (!source || typeof source !== "object") {
+    throw new Error("Invalid tracking response");
+  }
+
+  const delivered = Number(source.alreadyDelivered || source.delivered || 0);
+  const total = Number(source.totalAmount || source.total || 0);
+  const percent = Number.isFinite(Number(source.percentDelivered))
+    ? Number(source.percentDelivered)
+    : (total > 0 ? (delivered / total) * 100 : 0);
+
+  return {
+    status: String(source.status || source.orderStatus || "unknown"),
+    delivered,
+    total,
+    percent: Number.isFinite(percent) ? percent : 0,
+    lastActivity: String(source.lastActivity || source.updatedAt || "")
+  };
+}
+
 function getCheckoutFieldValue(configField, formData) {
   return String(formData.get(configField.id) || "").trim();
 }
@@ -754,6 +817,7 @@ function renderShop() {
   const downloadMyDataBtn = document.getElementById("downloadMyDataBtn");
   const deleteMyDataBtn = document.getElementById("deleteMyDataBtn");
   const privacyInfoLine = document.getElementById("privacyInfoLine");
+  const trackingStateByOrderId = new Map();
   let customerCurrency = String(localStorage.getItem("customerCurrency") || DEFAULT_CUSTOMER_CURRENCY).toUpperCase();
   if (!CUSTOMER_CURRENCIES[customerCurrency]) {
     customerCurrency = DEFAULT_CUSTOMER_CURRENCY;
@@ -895,10 +959,72 @@ function renderShop() {
           <span><strong>EAFC ID:</strong> ${order.eafcTag || "-"}</span>
           <span><strong>Items:</strong> ${order.items.map((item) => `${item.name} (${item.qty})`).join(", ")}</span>
           <span><strong>Payment note:</strong> ${order.paymentStatus === "paid" ? "Payment received, check order status for progress." : `Pay manually to ${state.checkoutConfig.paypalEmail} and include this order ID in the description.`}</span>
+          ${sanitizeHttpUrl(order.trackingUrl) ? `<span><strong>Live tracking link:</strong> <a href="${escapeHtml(sanitizeHttpUrl(order.trackingUrl))}" target="_blank" rel="noopener noreferrer">Open tracker</a></span>` : "<span><strong>Live tracking:</strong> not set yet</span>"}
+          <div class="order-tracking-box" data-tracking-box="${escapeHtml(order.id)}">${escapeHtml(trackingStateByOrderId.get(order.id) || "Live status: click refresh to load")}</div>
+          <button class="ghost-btn" data-refresh-tracking="${escapeHtml(order.id)}">Refresh live status</button>
           ${order.adminNote ? `<span><strong>Admin note:</strong> ${escapeHtml(order.adminNote)}</span>` : ""}
         </div>
       </article>
     `).join("");
+  }
+
+  async function refreshOrderTracking(orderId) {
+    const order = state.orders.find((entry) => String(entry.id) === String(orderId));
+    if (!order) {
+      alert("Order not found.");
+      return;
+    }
+
+    if (!order.trackingUrl) {
+      trackingStateByOrderId.set(order.id, "Live status unavailable: no tracking link set for this order.");
+      renderCustomerOrders();
+      return;
+    }
+
+    const code = getOrderTrackingCode(order.trackingUrl);
+    if (!code) {
+      trackingStateByOrderId.set(order.id, "Live status unavailable: tracking link has no valid code parameter.");
+      renderCustomerOrders();
+      return;
+    }
+
+    if (!ORDER_TRACKING_CONFIG.enabled || !String(ORDER_TRACKING_CONFIG.proxyUrl || "").trim()) {
+      trackingStateByOrderId.set(order.id, "Live status unavailable: tracking proxy is not configured yet.");
+      renderCustomerOrders();
+      return;
+    }
+
+    try {
+      trackingStateByOrderId.set(order.id, "Loading live status...");
+      renderCustomerOrders();
+
+      const proxyBase = String(ORDER_TRACKING_CONFIG.proxyUrl || "").trim();
+      const endpoint = `${proxyBase}${proxyBase.includes("?") ? "&" : "?"}code=${encodeURIComponent(code)}`;
+      const headers = {};
+      if (String(ORDER_TRACKING_CONFIG.proxyToken || "").trim()) {
+        headers["x-tracking-token"] = String(ORDER_TRACKING_CONFIG.proxyToken || "").trim();
+      }
+
+      const response = await fetch(endpoint, { headers });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const payload = await response.json();
+      const live = normalizeTrackingStatusPayload(payload);
+      const statusText = [
+        `Status: ${live.status}`,
+        `Delivered: ${live.delivered} / ${live.total}`,
+        `Progress: ${live.percent.toFixed(1)}%`,
+        live.lastActivity ? `Last update: ${live.lastActivity}` : ""
+      ].filter(Boolean).join(" | ");
+
+      trackingStateByOrderId.set(order.id, statusText);
+      renderCustomerOrders();
+    } catch (error) {
+      trackingStateByOrderId.set(order.id, `Live status failed: ${error.message}`);
+      renderCustomerOrders();
+    }
   }
 
   function openOrderActionConfirm(action, orderId) {
@@ -1150,8 +1276,13 @@ function renderShop() {
     const add = e.target.getAttribute("data-add");
     const remove = e.target.getAttribute("data-remove");
     const toggleMaskId = e.target.getAttribute("data-toggle-mask");
+    const refreshTrackingOrderId = e.target.getAttribute("data-refresh-tracking");
     if (add) addToCart(add);
     if (remove) removeFromCart(remove);
+    if (refreshTrackingOrderId) {
+      void refreshOrderTracking(refreshTrackingOrderId);
+      return;
+    }
     if (toggleMaskId) {
       const input = document.getElementById(toggleMaskId);
       if (!input) return;
@@ -1589,7 +1720,7 @@ function renderAdminPage() {
     kpiPendingPayments.textContent = pendingPayments;
 
     if (visibleOrders.length === 0) {
-      orderTableBody.innerHTML = "<tr><td colspan='15'>Geen bestellingen voor deze filter.</td></tr>";
+      orderTableBody.innerHTML = "<tr><td colspan='16'>Geen bestellingen voor deze filter.</td></tr>";
     } else {
       orderTableBody.innerHTML = visibleOrders.map((o, idx) => `
         <tr>
@@ -1608,6 +1739,9 @@ function renderAdminPage() {
           <td><span class="status-badge ${o.paymentStatus === "paid" ? "paid" : "pending"}">${o.paymentStatus}</span></td>
           <td>${o.paymentMethod || "-"}</td>
           <td>${o.paymentReference || "-"}</td>
+          <td>
+            <input type="url" data-order-tracking="${o.id}" placeholder="https://futtransfer.top/orderStatus?code=..." value="${escapeHtml(o.trackingUrl || "")}">
+          </td>
           <td>
             <textarea rows="3" data-order-note="${o.id}" placeholder="Interne notitie voor dit order...">${escapeHtml(o.adminNote || "")}</textarea>
           </td>
@@ -1671,7 +1805,7 @@ function renderAdminPage() {
   function exportOrdersCsv() {
     const headers = [
       "OrderID", "VolgNr", "Klant", "Email", "EAFCID", "Items", "TotaalEUR",
-      "BetaaldEUR", "OrderStatus", "PaymentStatus", "Methode", "Referentie", "Tijdstip"
+      "BetaaldEUR", "OrderStatus", "PaymentStatus", "Methode", "Referentie", "TrackingURL", "Tijdstip"
     ];
 
     const rows = state.orders.map((o, idx) => [
@@ -1687,6 +1821,7 @@ function renderAdminPage() {
       o.paymentStatus,
       o.paymentMethod,
       o.paymentReference || "",
+      o.trackingUrl || "",
       new Date(o.createdAt).toLocaleString()
     ]);
 
@@ -1865,11 +2000,18 @@ function renderAdminPage() {
     if (saveOrderId) {
       const selectEl = document.querySelector(`select[data-order-status="${saveOrderId}"]`);
       const noteEl = document.querySelector(`textarea[data-order-note="${saveOrderId}"]`);
+      const trackingEl = document.querySelector(`input[data-order-tracking="${saveOrderId}"]`);
       if (!selectEl) return;
       const order = state.orders.find((o) => o.id === saveOrderId);
       if (!order) return;
+      const rawTrackingUrl = String(trackingEl?.value || "").trim();
+      if (rawTrackingUrl && !sanitizeHttpUrl(rawTrackingUrl)) {
+        alert("Tracking URL must be a valid http(s) link.");
+        return;
+      }
       order.orderStatus = selectEl.value;
       order.adminNote = String(noteEl?.value || "").trim();
+      order.trackingUrl = rawTrackingUrl;
       if (order.orderStatus === "paid") {
         order.paymentStatus = "paid";
         order.paidAmount = Number(order.total || 0);

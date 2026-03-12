@@ -183,6 +183,15 @@ body {
   border-radius: 10px;
 }
 
+.order-tracking-box {
+  margin-top: 6px;
+  padding: 9px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .paypal-section {
   padding: 10px;
   border: 1px dashed var(--line);
