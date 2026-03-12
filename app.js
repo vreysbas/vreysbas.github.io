@@ -779,6 +779,7 @@ function formatOrderDetailsLines(order, options = {}) {
     `Gebruiker: ${order.username || "guest"}`,
     `Klant: ${order.fullName || "-"}`,
     `E-mail: ${order.email || "-"}`,
+    `Credit gebruikt: EUR ${formatMoney(order.creditUsed || 0)}`,
     `Totaal: EUR ${formatMoney(order.total || 0)}`,
     `Items: ${(order.items || []).map((item) => `${item.name} (${item.qty})`).join(", ") || "-"}`,
     `Orderstatus: ${order.orderStatus || "-"}`,
@@ -789,6 +790,10 @@ function formatOrderDetailsLines(order, options = {}) {
 
   if (includeEafcId) {
     lines.splice(5, 0, `EAFC ID: ${order.eafcTag || "-"}`);
+  }
+
+  if (String(order.creditPaymentType || "") === "full") {
+    lines.push("PayPal check: NOT required (order paid with credits).");
   }
 
   const checkoutFieldValues = Array.isArray(order.checkoutFieldValues) ? order.checkoutFieldValues : [];
@@ -1386,6 +1391,7 @@ function renderShop() {
     const availableCredit = Math.max(0, Number(account?.creditBalanceEur || 0));
     const creditUsed = Math.min(availableCredit, totalBeforeCredit);
     const total = Number((totalBeforeCredit - creditUsed).toFixed(2));
+    const isCreditOnlyPayment = creditUsed > 0 && total <= 0;
 
     if (account && creditUsed > 0) {
       account.creditBalanceEur = Number((availableCredit - creditUsed).toFixed(2));
@@ -1417,13 +1423,22 @@ function renderShop() {
       total,
       totalBeforeCredit,
       creditUsed,
-      orderStatus: "awaiting_payment",
-      paymentMethod: "paypal-manual-transfer",
-      paymentStatus: "pending",
-      paidAmount: 0,
-      paymentReference: `Use order ID ${orderId} in PayPal description`,
+      creditPaymentType: isCreditOnlyPayment ? "full" : (creditUsed > 0 ? "partial" : "none"),
+      orderStatus: isCreditOnlyPayment ? "queued" : "awaiting_payment",
+      paymentMethod: isCreditOnlyPayment ? "site-credit" : "paypal-manual-transfer",
+      paymentStatus: isCreditOnlyPayment ? "paid" : "pending",
+      paidAmount: isCreditOnlyPayment ? Number(totalBeforeCredit.toFixed(2)) : 0,
+      paymentReference: isCreditOnlyPayment
+        ? "Paid fully with site credit. Do NOT check PayPal for this order."
+        : `Use order ID ${orderId} in PayPal description`,
       createdAt: new Date().toISOString()
     };
+
+    if (isCreditOnlyPayment) {
+      order.pointsAwarded = 0;
+      order.pointsAwardedAt = new Date().toISOString();
+      order.pointsAwardReason = "credit-payment-no-points";
+    }
 
     state.orders.unshift(order);
     latestCheckoutOrderId = order.id;
@@ -1432,15 +1447,19 @@ function renderShop() {
     saveState();
     renderCart();
     renderCustomerOrders();
-    instructions.classList.remove("hidden");
-    checkoutStatus.textContent = "Order created. Follow the payment steps below exactly.";
+    instructions.classList.toggle("hidden", isCreditOnlyPayment);
+    checkoutStatus.textContent = isCreditOnlyPayment
+      ? "Order created and paid with credits. No PayPal action is required."
+      : "Order created. Follow the payment steps below exactly.";
     summary.innerHTML = `
       <strong>Total in selected currency:</strong> ${formatCustomerMoney(order.total)}<br>
       <strong>Credit used:</strong> EUR ${formatMoney(order.creditUsed || 0)}<br>
       <strong>Settlement currency:</strong> EUR ${formatMoney(order.total)}<br>
-      <strong>PayPal account:</strong> ${escapeHtml(state.checkoutConfig.paypalEmail)}<br>
+      ${isCreditOnlyPayment
+    ? "<strong>Payment handling:</strong> Fully paid with credits. Do not send PayPal payment.<br>"
+    : `<strong>PayPal account:</strong> ${escapeHtml(state.checkoutConfig.paypalEmail)}<br>
       <strong>Order ID for description:</strong> ${order.id}<br>
-      <strong>Important:</strong> Without this order ID in the description we cannot match your payment.<br>
+      <strong>Important:</strong> Without this order ID in the description we cannot match your payment.<br>`}
       <strong>Refund policy:</strong> ${escapeHtml(state.checkoutConfig.refundWarning)}
     `;
 
@@ -1448,7 +1467,7 @@ function renderShop() {
       toEmail: order.email,
       toName: order.fullName,
       subject: `EAFC 26 Hub - Order confirmation ${order.id}`,
-      message: `Hi ${order.fullName},\n\nThanks for your order at EAFC 26 Hub.\n\nOrder details\n- Order number: ${order.id}\n- Date: ${new Date(order.createdAt).toLocaleString()}\n- Total amount: EUR ${formatMoney(order.total)}\n- EAFC username: ${order.eafcTag}\n- Payment method: Manual PayPal transfer\n\nPlease pay to: ${state.checkoutConfig.paypalEmail}\nRequired: include this order ID in the description: ${order.id}\n\nRefund policy: ${state.checkoutConfig.refundWarning}\n\nAfter manual verification we will update your order.\n\nKind regards,\nEAFC 26 Hub`
+      message: `Hi ${order.fullName},\n\nThanks for your order at EAFC 26 Hub.\n\nOrder details\n- Order number: ${order.id}\n- Date: ${new Date(order.createdAt).toLocaleString()}\n- Total amount: EUR ${formatMoney(order.total)}\n- Credit used: EUR ${formatMoney(order.creditUsed || 0)}\n- EAFC username: ${order.eafcTag}\n- Payment method: ${isCreditOnlyPayment ? "Site credit" : "Manual PayPal transfer"}\n\n${isCreditOnlyPayment ? "Your order is fully paid with credits. No PayPal payment is required.\n\n" : `Please pay to: ${state.checkoutConfig.paypalEmail}\nRequired: include this order ID in the description: ${order.id}\n\n`}Refund policy: ${state.checkoutConfig.refundWarning}\n\nAfter manual verification we will update your order.\n\nKind regards,\nEAFC 26 Hub`
     });
 
     if (MAIL_CONFIG.ownerEmail) {
